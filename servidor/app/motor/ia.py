@@ -152,10 +152,21 @@ def _esquema() -> dict:
     return AnalisisIA.model_json_schema()
 
 
+SUFIJO_PENSAR = "-pensar"  # p. ej. "claude-haiku-5-5-pensar": el mismo modelo con razonamiento adaptativo
+
+
+def modelo_api(modelo: str) -> str:
+    """Id real del modelo para la API (sin el sufijo de configuración)."""
+    return modelo[: -len(SUFIJO_PENSAR)] if modelo.endswith(SUFIJO_PENSAR) else modelo
+
+
 def _opciones_modelo(modelo: str) -> dict:
     """Menos razonamiento = menos tokens. Haiku 5.5 acepta apagar el thinking con effort bajo;
-    Sonnet 5.5 no (400), así que ahí solo se baja el effort."""
+    Sonnet 5.5 no (400), así que ahí solo se baja el effort. Con el sufijo -pensar, el modelo razona
+    (thinking adaptativo, effort medio): más caro que sin razonar, mucho más barato que subir de modelo."""
     salida = {"format": {"type": "json_schema", "schema": _esquema()}, "effort": "low"}
+    if modelo.endswith(SUFIJO_PENSAR):
+        return {"output_config": {**salida, "effort": "medium"}, "thinking": {"type": "adaptive"}}
     if "haiku" in modelo:
         return {"output_config": salida, "thinking": {"type": "disabled"}}
     return {"output_config": salida}
@@ -189,8 +200,8 @@ def analizar(c: CapturaEntrada, fotos: dict[str, Foto], modelo: str) -> Resultad
     _limitador().tomar(estimado)
     inicio = time.perf_counter()
     resp = _cliente().messages.create(
-        model=modelo,
-        max_tokens=1500,
+        model=modelo_api(modelo),
+        max_tokens=8000 if modelo.endswith(SUFIJO_PENSAR) else 1500,
         system=SISTEMA,
         messages=[{"role": "user", "content": contenido}],
         **_opciones_modelo(modelo),

@@ -154,7 +154,12 @@ def _cargar(ruta: str) -> ModeloFusion | None:
 @lru_cache
 def umbrales(modelo_ia: str | None, etapa: str = "final") -> dict | None:
     """etapa 'final': umbrales para decidir solo con ese modelo. 'cascada': cuándo el rápido ya está seguro."""
-    ruta = carpeta(modelo_ia) / ("umbrales_cascada.json" if etapa == "cascada" else "umbrales.json")
+    if etapa == "cascada":
+        # Los umbrales de cascada dependen de cuál es el segundo modelo (Sonnet o Haiku razonando).
+        propio = carpeta(modelo_ia) / f"umbrales_cascada_{config().modelo_fuerte}.json"
+        ruta = propio if propio.exists() else carpeta(modelo_ia) / "umbrales_cascada.json"
+    else:
+        ruta = carpeta(modelo_ia) / "umbrales.json"
     return json.loads(ruta.read_text(encoding="utf-8")) if ruta.exists() else None
 
 

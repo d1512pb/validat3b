@@ -44,6 +44,7 @@ def main() -> None:
     ap.add_argument("--guardar", action="store_true", help="Guarda los umbrales de cascada elegidos para el modelo rápido.")
     ap.add_argument("--max-escala", type=float, default=1.0, help="Máxima fracción que puede escalar al fuerte.")
     ap.add_argument("--modelo-rapido", default="claude-haiku-5-5")
+    ap.add_argument("--modelo-fuerte", default="claude-sonnet-5-5")
     ap.add_argument("--verificar", action="store_true", help="Simular la doble llave en las aprobaciones.")
     a = ap.parse_args()
     ids_r, verdad, pa_r, pr_r, tok_r, bloq_r = cargar(a.rapido, a.l2)
@@ -69,14 +70,14 @@ def main() -> None:
             if apr and sum(v == "aprobada" for v in apr) / len(apr) < 0.97:
                 continue
             tok = sum(i + o for i, o in tok_r) + sum(i + o for (i, o), e in zip(tok_f, escala) if e)
-            dinero = usd(tok_r, "haiku") + usd([t for t, e in zip(tok_f, escala) if e], "sonnet")
+            dinero = usd(tok_r, "haiku") + usd([t for t, e in zip(tok_f, escala) if e], a.modelo_fuerte)
             filas.append((costo, escala.mean(), tok / n, dinero / n * 10_000, ta, tr))
     filas = [f for f in filas if f[1] <= a.max_escala]
     filas.sort(key=lambda r: (r[0], r[2]))
     print(f"Solo rápido: costo {optimizar_umbrales_3(pa_r, pr_r, verdad, bloqueadas=bloq_r)['optimo']['costo']}, "
           f"{sum(i + o for i, o in tok_r) / n:.0f} tokens/captura, ${usd(tok_r, 'haiku') / n * 1e4:.2f} por 10k")
     print(f"Solo fuerte: costo {of['costo']}, {sum(i + o for i, o in tok_f) / n:.0f} tokens/captura, "
-          f"${usd(tok_f, 'sonnet') / n * 1e4:.2f} por 10k")
+          f"${usd(tok_f, a.modelo_fuerte) / n * 1e4:.2f} por 10k")
     print("Cascada (mejores por costo):  costo | % escala | tokens/captura | USD por 10k | umbrales rápido")
     vistos = set()
     for costo, esc, tok, dinero, ta, tr in filas:
@@ -91,10 +92,10 @@ def main() -> None:
         costo, esc, tok, dinero, ta, tr = filas[0]
         destino = Path("modelos") / a.modelo_rapido
         destino.mkdir(parents=True, exist_ok=True)
-        (destino / "umbrales_cascada.json").write_text(json.dumps(
+        (destino / f"umbrales_cascada_{a.modelo_fuerte}.json").write_text(json.dumps(
             {"umbral_aprobar": float(ta), "umbral_p_rechazo": float(tr), "costo_estimado": costo,
              "fraccion_escala": round(float(esc), 3), "tokens_por_captura": round(tok)}, indent=1), encoding="utf-8")
-        print("Guardado", destino / "umbrales_cascada.json")
+        print("Guardado", destino / f"umbrales_cascada_{a.modelo_fuerte}.json")
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ def probar(modelo: str) -> None:
     opciones = ia._opciones_modelo(modelo)
     opciones["output_config"] = {**opciones["output_config"], "format": {"type": "json_schema", "schema": ESQUEMA}}
     try:
-        r = ia._cliente().messages.create(model=modelo, max_tokens=200,
+        r = ia._cliente().messages.create(model=ia.modelo_api(modelo), max_tokens=2000,
                                           messages=[{"role": "user", "content": "¿Capital de Francia?"}], **opciones)
         texto = next(b.text for b in r.content if b.type == "text")
         print(f"OK    {modelo}: {json.loads(texto)}  tokens {r.usage.input_tokens}+{r.usage.output_tokens}")
