@@ -4,7 +4,11 @@
 
 > **Actualización:** la comparación contra Haiku está en [`pruebas/`](pruebas/README.md). Haiku razonando da la misma calidad que Sonnet (0 FP, 0 FN y costo operativo de 66 a 71) por **$13–19 por 10,000 capturas**, contra $147–179 con Sonnet. Ahí está también el registro completo de corridas y cómo reproducirlas. La tabla para el pitch, con el costo por imagen en el peor caso, está en [`pruebas/peor-caso.md`](pruebas/peor-caso.md).
 
-## Motor desplegado hoy: cascada Haiku → Sonnet
+## Motor desplegado hoy: cascada Haiku → Haiku razonando
+
+Desde el 21-nov-2026 la segunda capa es Haiku razonando y no Sonnet: misma calidad, 8 veces más barata (ver [`pruebas/`](pruebas/README.md#elección-de-la-segunda-capa-10-particiones)). Abajo queda la descripción original con Sonnet.
+
+### Versión anterior: cascada Haiku → Sonnet
 
 1. **Capa local, 0 tokens:** fotos faltantes o ilegibles, código de barras del producto, nitidez y fotos repetidas.
 2. **Claude Haiku 5.5** revisa las 3 fotos. Si ya está muy seguro (p_aprobar ≥ 0.92 o p_rechazo ≥ 0.56), decide.
