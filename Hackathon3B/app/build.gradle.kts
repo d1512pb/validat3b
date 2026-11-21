@@ -78,6 +78,7 @@ dependencies {
     // ML Kit on-device (bundled)
     implementation(libs.mlkit.barcode.scanning)
     implementation(libs.mlkit.text.recognition)
+    implementation(libs.mlkit.image.labeling)
     // Ubicación y corrutinas
     implementation(libs.play.services.location)
     implementation(libs.kotlinx.coroutines.play.services)

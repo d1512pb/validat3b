@@ -32,7 +32,10 @@ enum class Problema(val corto: String, val mensaje: String, val bloqueante: Bool
     SIN_CODIGO_BARRAS("Sin código", "No se encontró el código de barras: gira el producto para que se vea completo."),
     CODIGO_INVALIDO("Código inválido", "El código de barras no es válido: vuelve a tomar la foto con el código derecho y nítido."),
     SIN_PRECIO("Sin precio", "No se encontró el precio en la etiqueta: encuadra la etiqueta completa."),
-    SIN_PRECIO_UNITARIO("Sin precio unitario", "No se ve el precio unitario (por kg / por litro). El servidor decidirá.", bloqueante = false);
+    SIN_PRECIO_UNITARIO("Sin precio unitario", "No se ve el precio unitario (por kg / por litro). El servidor decidirá.", bloqueante = false),
+    PRODUCTO_NO_VISIBLE("Sin producto", "No se ve un producto en la foto: encuadra el producto completo y de frente."),
+    FACHADA_NO_PARECE_TIENDA("¿Fachada?", "La foto no parece la fachada de una tienda: incluye el letrero y la entrada.", bloqueante = false),
+    POSIBLE_FOTO_DE_PANTALLA("¿Pantalla?", "Parece una foto de una pantalla: fotografía el objeto real, no un monitor o celular.", bloqueante = false);
 }
 
 /**
@@ -71,6 +74,10 @@ data class AnalisisImagen(
     /** Área del bounding box del código / área de la imagen (0..1); null si no hay código. */
     val areaCodigo: Double? = null,
     val problemas: List<Problema>,
+    /** Etiquetas de ML Kit Image Labeling, ordenadas por confianza descendente. */
+    val etiquetas: List<EtiquetaImagen> = emptyList(),
+    /** Líneas del OCR con su altura (px del bitmap analizado) y posición vertical. */
+    val lineasOcr: List<LineaOcr> = emptyList(),
 ) {
     val esValida get() = problemas.isEmpty()
     val tieneBloqueantes get() = problemas.any { it.bloqueante }
@@ -92,6 +99,32 @@ data class ProductoEsperado(
     val marca: String? = null,
     val contenido: String? = null,
     val esContratipo: Boolean = false,
+    /** Precio final que confirma el capturista (prellenado con el detectado). */
+    val precio: Double? = null,
+    /** Lo que sugirió la app antes de que el usuario editara (auditoría). */
+    val descripcionDetectada: String? = null,
+    val precioDetectado: Double? = null,
+    val fuente: FuenteDescripcion? = null,
+    /** Confianza 0..1 de la sugerencia de descripción. */
+    val confianzaSugerencia: Float? = null,
+    val editadoPorUsuario: Boolean = false,
+)
+
+/** Etiqueta de ML Kit Image Labeling (texto en inglés del modelo base). */
+data class EtiquetaImagen(val texto: String, val confianza: Float, val indice: Int)
+
+/** Línea del OCR: [alturaPx] = alto del boundingBox; [top] = borde superior (px). */
+data class LineaOcr(val texto: String, val alturaPx: Int, val top: Int)
+
+/** De dónde salió la descripción sugerida. */
+enum class FuenteDescripcion { CATALOGO, ETIQUETA_RACK, FOTO_PRODUCTO, CATEGORIA, MANUAL }
+
+/** Sugerencia de producto esperado. [confianza] 0..1. */
+data class Sugerencia(
+    val descripcion: String?,
+    val fuente: FuenteDescripcion?,
+    val precio: Double?,
+    val confianza: Float,
 )
 
 /** Decisiones del contrato. `decision` desconocida → REVISION_MANUAL (contratos.md §6). */

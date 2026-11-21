@@ -23,7 +23,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -54,7 +53,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -77,10 +75,8 @@ import com.richi_mc.hackathon3b.ui.components.GlassBackground
 import com.richi_mc.hackathon3b.ui.components.GlassButton
 import com.richi_mc.hackathon3b.ui.components.GlassCard
 import com.richi_mc.hackathon3b.ui.components.GlassProgressBar
-import com.richi_mc.hackathon3b.ui.components.GlassTextField
 import com.richi_mc.hackathon3b.ui.components.IconBox
 import com.richi_mc.hackathon3b.ui.components.PrimaryButton
-import com.richi_mc.hackathon3b.ui.components.SegmentedControl
 import com.richi_mc.hackathon3b.ui.components.StatusChip
 import com.richi_mc.hackathon3b.ui.theme.Glass
 import com.richi_mc.hackathon3b.ui.theme.GlassDimens
@@ -135,11 +131,6 @@ fun ProductoScreen(
 
     ProductoContent(
         state = state,
-        descripcion = vm.descripcion,
-        codigoBarras = vm.codigoBarras,
-        onDescripcion = vm::cambiarDescripcion,
-        onCodigoBarras = vm::cambiarCodigoBarras,
-        onContratipo = vm::cambiarContratipo,
         onTomar = vm::abrirCamara,
         onSubir = { tipo ->
             val pedido = PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
@@ -154,11 +145,6 @@ fun ProductoScreen(
 @Composable
 fun ProductoContent(
     state: ProductoUiState,
-    descripcion: String,
-    codigoBarras: String,
-    onDescripcion: (String) -> Unit,
-    onCodigoBarras: (String) -> Unit,
-    onContratipo: (Boolean) -> Unit,
     onTomar: (TipoFoto) -> Unit,
     onSubir: (TipoFoto) -> Unit,
     onEscanear: () -> Unit,
@@ -188,15 +174,6 @@ fun ProductoContent(
                 verticalArrangement = GlassDimens.itemSpacing,
             ) {
                 Progreso(state.pasosHechos)
-
-                EsperadoCard(
-                    descripcion = descripcion,
-                    codigoBarras = codigoBarras,
-                    esContratipo = borrador.productoEsperado.esContratipo,
-                    onDescripcion = onDescripcion,
-                    onCodigoBarras = onCodigoBarras,
-                    onContratipo = onContratipo,
-                )
 
                 PasoFotoCard(
                     titulo = "1. Foto del producto",
@@ -288,45 +265,6 @@ private fun Progreso(pasosHechos: Int) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         GlassProgressBar(pasosHechos / ProductoUiState.TOTAL_PASOS.toFloat())
         Text("$pasosHechos de ${ProductoUiState.TOTAL_PASOS} pasos", style = Glass.type.secondary, color = GlassRojo.inkMuted)
-    }
-}
-
-@Composable
-private fun EsperadoCard(
-    descripcion: String,
-    codigoBarras: String,
-    esContratipo: Boolean,
-    onDescripcion: (String) -> Unit,
-    onCodigoBarras: (String) -> Unit,
-    onContratipo: (Boolean) -> Unit,
-) {
-    GlassCard(Modifier.fillMaxWidth()) {
-        Text("Producto esperado", style = Glass.type.title)
-        Text("Opcional: lo que dices estar fotografiando.", style = Glass.type.secondary, color = GlassRojo.inkMuted)
-        Spacer(Modifier.height(GlassDimens.s12))
-        GlassTextField(
-            value = descripcion,
-            onValueChange = onDescripcion,
-            label = "Descripción",
-            placeholder = "Ej. Leche entera 1 L",
-        )
-        Spacer(Modifier.height(GlassDimens.s12))
-        GlassTextField(
-            value = codigoBarras,
-            onValueChange = onCodigoBarras,
-            label = "Código de barras del catálogo",
-            placeholder = "Solo números",
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        )
-        Spacer(Modifier.height(GlassDimens.s12))
-        Text("Es contratipo", style = Glass.type.secondary, color = GlassRojo.inkSecondary)
-        Spacer(Modifier.height(6.dp))
-        SegmentedControl(
-            options = listOf(true, false),
-            selected = esContratipo,
-            label = { if (it) "Sí" else "No" },
-            onSelect = onContratipo,
-        )
     }
 }
 
@@ -644,12 +582,11 @@ private fun SinSesion(onAtras: () -> Unit) {
 private val escaneoOk = CodigoEscaneado("7501055363056", "EAN_13", true, 0L)
 
 @Composable
-private fun PreviewProducto(state: ProductoUiState, descripcion: String = "", codigo: String = "") {
+private fun PreviewProducto(state: ProductoUiState) {
     GlassRojoTheme {
         ProductoContent(
             state = state,
-            descripcion = descripcion, codigoBarras = codigo,
-            onDescripcion = {}, onCodigoBarras = {}, onContratipo = {}, onTomar = {}, onSubir = {},
+            onTomar = {}, onSubir = {},
             onEscanear = {}, onRevisar = {}, onAtras = {},
         )
     }
@@ -672,7 +609,6 @@ private fun ProductoCodigoEnFotoPreview() = PreviewProducto(
             precio = EjemplosPreview.precio,
         ),
     ),
-    descripcion = "Leche entera 1 L", codigo = "7501055300075",
 )
 
 @Preview(showBackground = true, backgroundColor = 0xFF020617, heightDp = 1400)
@@ -704,7 +640,6 @@ private fun ProductoCodigoEscaneadoPreview() = PreviewProducto(
             precio = EjemplosPreview.precio,
         ),
     ),
-    descripcion = "Leche entera 1 L", codigo = "7501055300075",
 )
 
 @Preview(showBackground = true, backgroundColor = 0xFF020617, heightDp = 1400)
@@ -733,7 +668,6 @@ private fun ProductoConProblemasPreview() = PreviewProducto(
             precio = PrecioDetectado(null, com.richi_mc.hackathon3b.core.model.TipoPrecio.DESCONOCIDO, false, ""),
         ),
     ),
-    descripcion = "Leche entera 1 L", codigo = "7501055300075",
 )
 
 @Preview(showBackground = true, backgroundColor = 0xFF020617, heightDp = 800)

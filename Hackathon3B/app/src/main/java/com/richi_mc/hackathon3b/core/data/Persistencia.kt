@@ -14,6 +14,9 @@ import com.richi_mc.hackathon3b.core.model.Cadena
 import com.richi_mc.hackathon3b.core.model.Captura
 import com.richi_mc.hackathon3b.core.model.CodigoEscaneado
 import com.richi_mc.hackathon3b.core.model.EstadoEnvio
+import com.richi_mc.hackathon3b.core.model.EtiquetaImagen
+import com.richi_mc.hackathon3b.core.model.FuenteDescripcion
+import com.richi_mc.hackathon3b.core.model.LineaOcr
 import com.richi_mc.hackathon3b.core.model.PrecioDetectado
 import com.richi_mc.hackathon3b.core.model.Problema
 import com.richi_mc.hackathon3b.core.model.ProductoEsperado
@@ -51,6 +54,14 @@ data class CapturaEntity(
     val espMarca: String?,
     val espContenido: String?,
     val espEsContratipo: Boolean,
+    // Producto esperado editable (v3): precio final, valores detectados y auditoría de la sugerencia.
+    val espPrecio: Double? = null,
+    val espDescripcionDetectada: String? = null,
+    val espPrecioDetectado: Double? = null,
+    /** Nombre de [FuenteDescripcion]; null si no hubo sugerencia. */
+    val espFuente: String? = null,
+    val espConfianzaSugerencia: Float? = null,
+    val espEditadoPorUsuario: Boolean = false,
     val productoPath: String,
     val etiquetaPath: String,
     /** AnalisisImagen (métricas, OCR, código, problemas) serializados a JSON. */
@@ -95,7 +106,7 @@ interface CapturaDao {
 
 // ------------------------------------------------------------------ Database
 
-@Database(entities = [CapturaEntity::class, SesionEntity::class], version = 2, exportSchema = false)
+@Database(entities = [CapturaEntity::class, SesionEntity::class], version = 3, exportSchema = false)
 abstract class Validat3BDatabase : RoomDatabase() {
     abstract fun capturaDao(): CapturaDao
     abstract fun sesionDao(): SesionDao
@@ -132,7 +143,16 @@ internal data class AnalisisJson(
     val formatoCodigo: String? = null,
     val areaCodigo: Double? = null,
     val problemas: List<Problema> = emptyList(),
+    // Agregados con Image Labeling y la sugerencia; con default para leer filas viejas.
+    val etiquetas: List<EtiquetaJson> = emptyList(),
+    val lineasOcr: List<LineaOcrJson> = emptyList(),
 )
+
+@Serializable
+internal data class EtiquetaJson(val texto: String, val confianza: Float = 0f, val indice: Int = 0)
+
+@Serializable
+internal data class LineaOcrJson(val texto: String, val alturaPx: Int = 0, val top: Int = 0)
 
 @Serializable
 internal data class PrecioJson(
@@ -180,13 +200,19 @@ internal fun codigoEscaneadoDeJson(s: String): CodigoEscaneado =
 
 internal fun AnalisisImagen.toJson() = JsonDb.encodeToString(
     AnalisisJson.serializer(),
-    AnalisisJson(tipo, path, nitidez, brillo, textoOcr, confianzaOcr, codigoBarras, formatoCodigo, areaCodigo, problemas)
+    AnalisisJson(
+        tipo, path, nitidez, brillo, textoOcr, confianzaOcr, codigoBarras, formatoCodigo, areaCodigo, problemas,
+        etiquetas = etiquetas.map { EtiquetaJson(it.texto, it.confianza, it.indice) },
+        lineasOcr = lineasOcr.map { LineaOcrJson(it.texto, it.alturaPx, it.top) },
+    )
 )
 
 internal fun analisisDeJson(s: String): AnalisisImagen = JsonDb.decodeFromString(AnalisisJson.serializer(), s).let {
     AnalisisImagen(
         it.tipo, it.path, it.nitidez, it.brillo, it.textoOcr, it.confianzaOcr,
-        it.codigoBarras, it.formatoCodigo, it.areaCodigo, it.problemas
+        it.codigoBarras, it.formatoCodigo, it.areaCodigo, it.problemas,
+        etiquetas = it.etiquetas.map { e -> EtiquetaImagen(e.texto, e.confianza, e.indice) },
+        lineasOcr = it.lineasOcr.map { l -> LineaOcr(l.texto, l.alturaPx, l.top) },
     )
 }
 
@@ -236,6 +262,10 @@ internal fun Captura.toEntity() = CapturaEntity(
     espDescripcion = productoEsperado.descripcion, espCodigoBarras = productoEsperado.codigoBarras,
     espSku = productoEsperado.sku, espMarca = productoEsperado.marca,
     espContenido = productoEsperado.contenido, espEsContratipo = productoEsperado.esContratipo,
+    espPrecio = productoEsperado.precio, espDescripcionDetectada = productoEsperado.descripcionDetectada,
+    espPrecioDetectado = productoEsperado.precioDetectado, espFuente = productoEsperado.fuente?.name,
+    espConfianzaSugerencia = productoEsperado.confianzaSugerencia,
+    espEditadoPorUsuario = productoEsperado.editadoPorUsuario,
     productoPath = producto.path, etiquetaPath = etiqueta.path,
     productoJson = producto.toJson(), etiquetaJson = etiqueta.toJson(), precioJson = precio.toJson(),
     timestampMillis = timestampMillis, estado = estado.name,
@@ -248,6 +278,9 @@ internal fun CapturaEntity.toModelo() = Captura(
     productoEsperado = ProductoEsperado(
         descripcion = espDescripcion, codigoBarras = espCodigoBarras, sku = espSku,
         marca = espMarca, contenido = espContenido, esContratipo = espEsContratipo,
+        precio = espPrecio, descripcionDetectada = espDescripcionDetectada, precioDetectado = espPrecioDetectado,
+        fuente = espFuente?.let { n -> runCatching { FuenteDescripcion.valueOf(n) }.getOrNull() },
+        confianzaSugerencia = espConfianzaSugerencia, editadoPorUsuario = espEditadoPorUsuario,
     ),
     producto = analisisDeJson(productoJson),
     etiqueta = analisisDeJson(etiquetaJson),

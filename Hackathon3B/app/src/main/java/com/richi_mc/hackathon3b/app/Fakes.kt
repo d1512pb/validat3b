@@ -4,6 +4,12 @@ import com.richi_mc.hackathon3b.core.model.AnalisisImagen
 import com.richi_mc.hackathon3b.core.model.Captura
 import com.richi_mc.hackathon3b.core.model.CapturaRepository
 import com.richi_mc.hackathon3b.core.model.EstadoEnvio
+import com.richi_mc.hackathon3b.core.model.EtiquetaImagen
+import com.richi_mc.hackathon3b.core.model.FuenteDescripcion
+import com.richi_mc.hackathon3b.core.model.ImageLabelerService
+import com.richi_mc.hackathon3b.core.model.LineaOcr
+import com.richi_mc.hackathon3b.core.model.Sugerencia
+import com.richi_mc.hackathon3b.core.model.SuggestionService
 import com.richi_mc.hackathon3b.core.model.ImageAnalyzer
 import com.richi_mc.hackathon3b.core.model.LocationProvider
 import com.richi_mc.hackathon3b.core.model.PrecioDetectado
@@ -46,8 +52,27 @@ class FakeImageAnalyzer(private val priceParser: PriceParser) : ImageAnalyzer {
             formatoCodigo = if (tipo == TipoFoto.PRODUCTO) "EAN_13" else null,
             areaCodigo = if (tipo == TipoFoto.PRODUCTO) 0.05 else null,
             problemas = emptyList<Problema>(),
+            etiquetas = when (tipo) {
+                TipoFoto.FACHADA -> listOf(EtiquetaImagen("Building", 0.88f, 0))
+                TipoFoto.PRODUCTO -> listOf(EtiquetaImagen("Bottle", 0.91f, 0), EtiquetaImagen("Food", 0.80f, 1))
+                TipoFoto.ETIQUETA -> listOf(EtiquetaImagen("Text", 0.83f, 0))
+            },
+            lineasOcr = texto.split(" \$").mapIndexed { i, l -> LineaOcr(l, 40 - i * 10, i * 50) },
         )
     }
+}
+
+class FakeImageLabeler : ImageLabelerService {
+    override suspend fun etiquetar(path: String) = listOf(
+        EtiquetaImagen("Bottle", 0.91f, 0), EtiquetaImagen("Food", 0.80f, 1),
+    )
+}
+
+class FakeSuggestionService : SuggestionService {
+    override fun sugerir(
+        lineasProducto: List<LineaOcr>, lineasEtiqueta: List<LineaOcr>,
+        etiquetasProducto: List<EtiquetaImagen>, precio: PrecioDetectado, codigoBarras: String?,
+    ) = Sugerencia("LECHE ENTERA 1 L", FuenteDescripcion.ETIQUETA_RACK, precio.valor, 0.8f)
 }
 
 class FakeSessionStore : SessionStore {

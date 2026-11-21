@@ -13,13 +13,17 @@ import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import android.util.Log
 import com.richi_mc.hackathon3b.core.model.AnalisisImagen
+import com.richi_mc.hackathon3b.core.model.LineaOcr
 import com.richi_mc.hackathon3b.core.model.ImageAnalyzer
 import com.richi_mc.hackathon3b.core.model.PrecioDetectado
 import com.richi_mc.hackathon3b.core.model.PriceParser
 import com.richi_mc.hackathon3b.core.model.Problema
 import com.richi_mc.hackathon3b.core.model.TipoFoto
 import com.richi_mc.hackathon3b.core.model.Umbrales
+import com.richi_mc.hackathon3b.feature.labeling.MlKitLabeler
+import com.richi_mc.hackathon3b.feature.labeling.problemasPorEtiquetas
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -35,12 +39,15 @@ import kotlin.math.max
  * Crea un cliente ML Kit de código de barras y uno de OCR por instancia; llama a [close]
  * cuando ya no se use (el contenedor de la app vive lo mismo que el proceso, así que basta con eso).
  *
+ * El [labeler] (opcional) lo cierra quien lo creó. Sin él no se etiqueta ni se agregan problemas por etiquetas.
+ *
  * Si la imagen no se puede decodificar devuelve un análisis con nitidez/brillo 0 y los problemas
  * bloqueantes BORROSA y OSCURA (para que la UI pida retomar la foto) en lugar de lanzar excepción.
  */
 class MlKitImageAnalyzer(
     @Suppress("unused") context: Context,
     private val priceParser: PriceParser,
+    private val labeler: MlKitLabeler? = null,
 ) : ImageAnalyzer, Closeable {
 
     private val barcodeScanner: BarcodeScanner = BarcodeScanning.getClient(
@@ -89,12 +96,14 @@ class MlKitImageAnalyzer(
             if (brillo < Umbrales.brilloMin) problemas += Problema.OSCURA
             else if (brillo > Umbrales.brilloMax) problemas += Problema.SOBREEXPUESTA
 
-            // 3 y 6. Código de barras y OCR en paralelo.
+            // 3 y 6. Código de barras, OCR y etiquetado en paralelo.
             val imagen = InputImage.fromBitmap(bitmap, 0)
             val codigoJob = async { if (tipo == TipoFoto.FACHADA) null else leerCodigo(imagen, bitmap) }
             val ocrJob = async { leerTexto(imagen) }
+            val etiquetasJob = async { labeler?.etiquetar(imagen).orEmpty() }
             val codigo = codigoJob.await()
             val ocr = ocrJob.await()
+            val etiquetas = etiquetasJob.await()
 
             // 3-5. Código de barras: obligatorio en producto, opcional en etiqueta.
             if (tipo == TipoFoto.PRODUCTO) {
@@ -119,16 +128,25 @@ class MlKitImageAnalyzer(
                 if (!precio.tienePrecioUnitario) problemas += Problema.SIN_PRECIO_UNITARIO
             }
 
+            // 8. Etiquetas de imagen: producto visible, fachada de tienda, foto de pantalla.
+            if (labeler != null) {
+                Log.d("Etiquetas", "$tipo: " + etiquetas.joinToString { "${it.texto} ${"%.2f".format(it.confianza)}" })
+            }
+            for (p in problemasPorEtiquetas(tipo, etiquetas, hayCodigo = codigo != null)) {
+                if (p !in problemas) problemas += p
+            }
+
             AnalisisImagen(
                 tipo = tipo, path = path, nitidez = nitidez, brillo = brillo,
                 textoOcr = ocr.texto, confianzaOcr = ocr.confianza,
                 codigoBarras = codigo?.valor, formatoCodigo = codigo?.formato,
                 areaCodigo = codigo?.area, problemas = problemas,
+                etiquetas = etiquetas, lineasOcr = ocr.lineas,
             )
         }
 
     private class CodigoLeido(val valor: String, val formato: String?, val area: Double?)
-    private class TextoLeido(val texto: String, val confianza: Float?)
+    private class TextoLeido(val texto: String, val confianza: Float?, val lineas: List<LineaOcr> = emptyList())
 
     private suspend fun leerCodigo(imagen: InputImage, bitmap: Bitmap): CodigoLeido? {
         val barcodes = seguro { barcodeScanner.process(imagen).await() } ?: return null
@@ -156,6 +174,9 @@ class MlKitImageAnalyzer(
         return TextoLeido(
             texto = resultado.text,
             confianza = if (confianzas.isEmpty()) null else confianzas.average().toFloat(),
+            lineas = resultado.textBlocks.flatMap { it.lines }.map { l ->
+                LineaOcr(l.text, l.boundingBox?.height() ?: 0, l.boundingBox?.top ?: 0)
+            },
         )
     }
 

@@ -6,11 +6,13 @@ import com.richi_mc.hackathon3b.core.model.AnalisisImagen
 import com.richi_mc.hackathon3b.core.model.Captura
 import com.richi_mc.hackathon3b.core.model.CodigoEscaneado
 import com.richi_mc.hackathon3b.core.model.Decision
+import com.richi_mc.hackathon3b.core.model.EtiquetaImagen
 import com.richi_mc.hackathon3b.core.model.Problema
 import com.richi_mc.hackathon3b.core.model.ResultadoServidor
 import com.richi_mc.hackathon3b.core.model.Sesion
 import com.richi_mc.hackathon3b.core.model.TipoFoto
 import com.richi_mc.hackathon3b.core.model.Umbrales
+import com.richi_mc.hackathon3b.feature.labeling.GruposEtiquetas
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -70,6 +72,13 @@ object CapturaMapper {
                 contenido = pe.contenido,
                 codigoBarras = pe.codigoBarras,
                 esContratipo = pe.esContratipo,
+                precio = pe.precio,
+                editadoPorUsuario = pe.editadoPorUsuario,
+                descripcionDetectada = pe.descripcionDetectada,
+                precioDetectado = pe.precioDetectado,
+                tipoPrecio = c.precio.tipo.name,
+                fuenteDescripcion = pe.fuente?.name,
+                confianzaSugerencia = pe.confianzaSugerencia?.let { redondear2(it.toDouble()) },
             ),
             cadena = s.cadena.etiqueta,
             tienda = s.tienda,
@@ -82,8 +91,23 @@ object CapturaMapper {
                 ubicacion = ubicacion,
             ),
             chequeosLocales = chequeos(c, s),
+            etiquetasImagen = etiquetasImagen(c, s),
         )
     }
+
+    /** `etiquetas_imagen`: null si ninguna de las tres fotos tiene etiquetas. */
+    internal fun etiquetasImagen(c: Captura, s: Sesion): EtiquetasImagenDto? {
+        val dto = EtiquetasImagenDto(
+            fachada = s.fachadaAnalisis?.etiquetas.orEmpty().map(::etiquetaDto),
+            producto = c.producto.etiquetas.map(::etiquetaDto),
+            etiqueta = c.etiqueta.etiquetas.map(::etiquetaDto),
+        )
+        return dto.takeIf { it.fachada.isNotEmpty() || it.producto.isNotEmpty() || it.etiqueta.isNotEmpty() }
+    }
+
+    private fun etiquetaDto(e: EtiquetaImagen) = EtiquetaImagenDto(e.texto, redondear2(e.confianza.toDouble()))
+
+    private fun redondear2(v: Double) = Math.round(v * 100.0) / 100.0
 
     /** Solo con lat/lon presentes, en rango y distintas de (0, 0); `precision_m` solo si es >= 0. */
     fun ubicacionDto(lat: Double?, lon: Double?, precisionM: Float?): UbicacionDto? {
@@ -168,6 +192,11 @@ object CapturaMapper {
         lista += distancia(c.producto, escaneadoValido = escaneado?.checksumOk == true)
         lista += etiquetaPresente(c.etiqueta)
         lista += precioLeido(c)
+
+        // Chequeos por etiquetas de imagen: solo para las fotos que tienen etiquetas.
+        s.fachadaAnalisis?.let { lista += fachadaTienda(it) }
+        lista += productoVisible(c.producto)
+        fotos.forEach { lista += fotoPantalla(it) }
 
         val codProducto = c.producto.codigoBarras
         val codEtiqueta = c.etiqueta.codigoBarras
@@ -297,6 +326,60 @@ object CapturaMapper {
             resultado = if (p.tienePrecioUnitario) OK else DUDA,
             valor = num(valor, 2),
             detalle = "tipo ${p.tipo.name.lowercase(Locale.ROOT)}, $unitario",
+        )
+    }
+
+    private fun List<EtiquetaImagen>.mejorDelGrupo(grupo: Set<String>): EtiquetaImagen? =
+        filter { it.texto.lowercase() in grupo }.maxByOrNull { it.confianza }
+
+    /** `producto_visible` (foto del producto): falla si no hay etiquetas de producto (PRODUCTO_NO_VISIBLE). */
+    internal fun productoVisible(a: AnalisisImagen): List<ChequeoLocalDto> {
+        if (a.etiquetas.isEmpty()) return emptyList()
+        val mejor = a.etiquetas.mejorDelGrupo(GruposEtiquetas.producto)
+        val principal = a.etiquetas.first()
+        return listOf(
+            ChequeoLocalDto(
+                nombre = "producto_visible",
+                foto = TipoFoto.PRODUCTO.contrato,
+                resultado = if (Problema.PRODUCTO_NO_VISIBLE in a.problemas) FALLA else OK,
+                puntaje = mejor?.confianza?.toDouble()?.coerceIn(0.0, 1.0),
+                valor = principal.texto,
+                detalle = "etiqueta principal ${principal.texto} ${num(principal.confianza * 100.0, 0)}%",
+            )
+        )
+    }
+
+    /** `fachada_tienda` (foto de la fachada): duda (advertencia) si no parece una tienda. */
+    internal fun fachadaTienda(a: AnalisisImagen): List<ChequeoLocalDto> {
+        if (a.etiquetas.isEmpty()) return emptyList()
+        val mejor = a.etiquetas.mejorDelGrupo(GruposEtiquetas.fachada)
+        val principal = a.etiquetas.first()
+        return listOf(
+            ChequeoLocalDto(
+                nombre = "fachada_tienda",
+                foto = TipoFoto.FACHADA.contrato,
+                resultado = if (Problema.FACHADA_NO_PARECE_TIENDA in a.problemas) DUDA else OK,
+                puntaje = mejor?.confianza?.toDouble()?.coerceIn(0.0, 1.0),
+                valor = principal.texto,
+                detalle = "etiqueta principal ${principal.texto} ${num(principal.confianza * 100.0, 0)}%",
+            )
+        )
+    }
+
+    /** `pantalla` (por foto): duda si el etiquetador ve un monitor, pantalla o teléfono (POSIBLE_FOTO_DE_PANTALLA). */
+    internal fun fotoPantalla(a: AnalisisImagen): List<ChequeoLocalDto> {
+        if (a.etiquetas.isEmpty()) return emptyList()
+        val mejor = a.etiquetas.mejorDelGrupo(GruposEtiquetas.pantalla)
+        val sospechosa = Problema.POSIBLE_FOTO_DE_PANTALLA in a.problemas
+        return listOf(
+            ChequeoLocalDto(
+                nombre = "pantalla",
+                foto = a.tipo.contrato,
+                resultado = if (sospechosa) DUDA else OK,
+                puntaje = mejor?.confianza?.toDouble()?.coerceIn(0.0, 1.0),
+                valor = (mejor ?: a.etiquetas.first()).texto,
+                detalle = if (sospechosa) "parece una foto de una pantalla" else "no parece una foto de una pantalla",
+            )
         )
     }
 

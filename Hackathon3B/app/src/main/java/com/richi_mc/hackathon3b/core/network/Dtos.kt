@@ -33,6 +33,8 @@ data class CapturaEntradaDto(
     @SerialName("fecha_hora_captura") val fechaHoraCaptura: String,
     @SerialName("metadatos_app") val metadatosApp: MetadatosAppDto? = null,
     @SerialName("chequeos_locales") val chequeosLocales: List<ChequeoLocalDto> = emptyList(),
+    /** Etiquetas de ML Kit por foto (campo extra, el contrato acepta campos adicionales); null si no hay ninguna. */
+    @SerialName("etiquetas_imagen") val etiquetasImagen: EtiquetasImagenDto? = null,
 )
 
 @Serializable
@@ -43,7 +45,30 @@ data class ProductoEsperadoDto(
     val contenido: String? = null,
     @SerialName("codigo_barras") val codigoBarras: String? = null,
     @SerialName("es_contratipo") val esContratipo: Boolean = false,
+    // Campos extra (el contrato acepta adicionales en producto_esperado): precio final y auditoría de la sugerencia.
+    val precio: Double? = null,
+    /** true si el capturista corrigió la descripción o el precio sugeridos; null = no aplica (no se manda). */
+    @SerialName("editado_por_usuario") val editadoPorUsuario: Boolean? = null,
+    @SerialName("descripcion_detectada") val descripcionDetectada: String? = null,
+    @SerialName("precio_detectado") val precioDetectado: Double? = null,
+    /** REGULAR | OFERTA | VOLUMEN | DESCONOCIDO (nombre del enum, tal cual lo detectó la app). */
+    @SerialName("tipo_precio") val tipoPrecio: String? = null,
+    /** CATALOGO | ETIQUETA_RACK | FOTO_PRODUCTO | CATEGORIA | MANUAL. */
+    @SerialName("fuente_descripcion") val fuenteDescripcion: String? = null,
+    @SerialName("confianza_sugerencia") val confianzaSugerencia: Double? = null,
 )
+
+/** Etiquetas de ML Kit Image Labeling por foto, ordenadas por confianza descendente. */
+@Serializable
+data class EtiquetasImagenDto(
+    val fachada: List<EtiquetaImagenDto> = emptyList(),
+    val producto: List<EtiquetaImagenDto> = emptyList(),
+    val etiqueta: List<EtiquetaImagenDto> = emptyList(),
+)
+
+/** `etiqueta` en inglés tal cual la devuelve el modelo; `confianza` 0..1 con 2 decimales. */
+@Serializable
+data class EtiquetaImagenDto(val etiqueta: String, val confianza: Double)
 
 @Serializable
 data class MetadatosAppDto(

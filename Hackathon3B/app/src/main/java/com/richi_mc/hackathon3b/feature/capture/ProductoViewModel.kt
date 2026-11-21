@@ -2,9 +2,6 @@ package com.richi_mc.hackathon3b.feature.capture
 
 import android.content.Context
 import android.net.Uri
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.richi_mc.hackathon3b.app.AppContainer
@@ -101,12 +98,6 @@ private data class LocalState(
 
 class ProductoViewModel(private val container: AppContainer) : ViewModel() {
 
-    // Texto de los campos: estado de Compose (síncrono) para que el cursor no salte; se refleja en el borrador.
-    var descripcion by mutableStateOf(container.borrador.borrador.value.productoEsperado.descripcion.orEmpty())
-        private set
-    var codigoBarras by mutableStateOf(container.borrador.borrador.value.productoEsperado.codigoBarras.orEmpty())
-        private set
-
     private val local = MutableStateFlow(LocalState())
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -122,21 +113,6 @@ class ProductoViewModel(private val container: AppContainer) : ViewModel() {
         viewModelScope, SharingStarted.WhileSubscribed(5_000),
         ProductoUiState(sesion = container.sessionStore.sesion.value, borrador = container.borrador.borrador.value),
     )
-
-    fun cambiarDescripcion(t: String) {
-        descripcion = t
-        container.borrador.actualizar { b -> b.copy(productoEsperado = b.productoEsperado.copy(descripcion = t.ifBlank { null })) }
-    }
-
-    fun cambiarCodigoBarras(t: String) {
-        val limpio = t.filter { it.isDigit() }
-        codigoBarras = limpio
-        container.borrador.actualizar { b -> b.copy(productoEsperado = b.productoEsperado.copy(codigoBarras = limpio.ifBlank { null })) }
-    }
-
-    fun cambiarContratipo(es: Boolean) {
-        container.borrador.actualizar { b -> b.copy(productoEsperado = b.productoEsperado.copy(esContratipo = es)) }
-    }
 
     fun abrirCamara(tipo: TipoFoto) = local.update { it.copy(camara = tipo, escaner = false, error = null) }
     fun cerrarCamara() = local.update { it.copy(camara = null) }

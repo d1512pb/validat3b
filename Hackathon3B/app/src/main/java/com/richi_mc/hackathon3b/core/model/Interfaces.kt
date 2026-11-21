@@ -8,6 +8,23 @@ interface ImageAnalyzer {
     suspend fun analizar(path: String, tipo: TipoFoto): AnalisisImagen
 }
 
+/** Etiquetado de imágenes on-device (ML Kit Image Labeling, modelo base bundled). */
+interface ImageLabelerService {
+    /** Etiquetas ordenadas por confianza descendente; lista vacía si falla. */
+    suspend fun etiquetar(path: String): List<EtiquetaImagen>
+}
+
+/** Arma la descripción y el precio sugeridos para "Producto esperado". */
+interface SuggestionService {
+    fun sugerir(
+        lineasProducto: List<LineaOcr>,
+        lineasEtiqueta: List<LineaOcr>,
+        etiquetasProducto: List<EtiquetaImagen>,
+        precio: PrecioDetectado,
+        codigoBarras: String?,
+    ): Sugerencia
+}
+
 interface PriceParser {
     fun parse(textoOcr: String): PrecioDetectado
 }
