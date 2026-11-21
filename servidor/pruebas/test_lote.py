@@ -167,6 +167,33 @@ def test_lote_completo_y_reanudable(tmp_path, monkeypatch):
     assert rep2["procesadas_ahora"] == 0 and len(llamadas) == n   # retomó sin volver a llamar
 
 
+def test_lote_reintenta_lo_que_fallo_por_la_ia(tmp_path, monkeypatch):
+    caida = {"activa": True}
+
+    def falso(c, fotos, modelo):
+        if caida["activa"] and c.capture_id == "CAP-001":
+            raise RuntimeError("límite de tokens")
+        return ResultadoIA(analisis(), modelo, 1500, 150, 5)
+
+    monkeypatch.setattr(ia, "analizar", falso)
+    datos = _dataset(tmp_path, 3)
+    salida = tmp_path / "corrida"
+    rep = correr(list(adaptador_jsonl(datos)), Corrida(salida, trabajadores=2))
+    resultados = json.loads((salida / "resultados.json").read_text(encoding="utf-8"))
+    assert len(resultados) == 3 and rep["con_fallas_ia"] == 1   # entregable aunque una falló
+    assert next(r for r in resultados if r["capture_id"] == "CAP-001")["decision"] == "revision_manual"
+    caida["activa"] = False
+    rep2 = correr(list(adaptador_jsonl(datos)), Corrida(salida, trabajadores=2))
+    assert rep2["procesadas_ahora"] == 1 and rep2["con_fallas_ia"] == 0   # solo reintentó la que falló
+
+
+def test_fachada_no_solo_con_evidencia():
+    sin_letrero = ia.normalizar_fachada(analisis(fachada_coincide="no", cadena_en_fachada=None), "Soriana")
+    otra = ia.normalizar_fachada(analisis(fachada_coincide="no", cadena_en_fachada="OXXO"), "Soriana")
+    misma = ia.normalizar_fachada(analisis(fachada_coincide="no", cadena_en_fachada="SORIANA"), "Soriana")
+    assert (sin_letrero.fachada_coincide, otra.fachada_coincide, misma.fachada_coincide) == ("no_se_distingue", "no", "si")
+
+
 def test_lote_sobrevive_a_errores(tmp_path, monkeypatch):
     def rompe(*a, **k):
         raise KeyError("algo raro")

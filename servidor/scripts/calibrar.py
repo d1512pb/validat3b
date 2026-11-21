@@ -18,9 +18,9 @@ from pathlib import Path
 import numpy as np
 
 from app.evaluacion import MATRIZ, costo_3, decisiones_3, optimizar_umbrales_3
-from app.motor.fusion import entrenar, guardar_motivos
+from app.motor.fusion import CARPETA_MODELOS, entrenar, guardar_motivos
 
-MODELOS = Path("modelos")
+MODELOS = CARPETA_MODELOS
 PREFIJOS_MOTIVO = ("ia_nitidez", "ia_tamano", "ia_legibilidad", "log_nitidez", "ia_descripcion_completa",
                    "ia_imagen_borrosa", "ia_captura_lejana", "compuerta_calidad", "compuerta_descripcion",
                    "ia_producto_visible", "ia_etiqueta_visible")

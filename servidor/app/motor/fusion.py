@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -78,7 +79,7 @@ def caracteristicas(c: CapturaEntrada, fotos: dict[str, Foto], p_reglas: float, 
             x["ia_anomalias"] = float(len(a.anomalias))
         x["ia_precio_presente"] = float(a.precio is not None)
         x["ia_confianza"] = a.confianza
-        for campo in ("nitidez_producto", "nitidez_etiqueta", "tamano_producto", "legibilidad_etiqueta"):
+        for campo in ("nitidez_producto", "nitidez_etiqueta", "tamano_producto", "tamano_etiqueta", "legibilidad_etiqueta"):
             v = getattr(a, campo, None)
             if v is not None:
                 x[f"ia_{campo}"] = float(min(max(v, 0.0), 1.0))
@@ -138,7 +139,8 @@ def entrenar(filas: list[dict[str, float]], y: list[int], l2: float = 1.0, itera
     return ModeloFusion(nombres, media, escala, w)
 
 
-CARPETA_MODELOS = Path("modelos")
+# Se puede apuntar a otro juego de modelos (p. ej. modelos_binario) sin tocar los de producción.
+CARPETA_MODELOS = Path(os.environ.get("CARPETA_MODELOS", "modelos"))
 
 
 def carpeta(modelo_ia: str | None) -> Path:

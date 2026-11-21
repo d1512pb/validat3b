@@ -19,6 +19,9 @@ from app.evaluacion import MATRIZ, decisiones_3, optimizar_umbrales_3
 from scripts.calibrar import fuera_de_muestra
 
 
+IGNORAR: set[str] = set()  # compuertas que no bloquean (siguen como señal en la fusión)
+
+
 def leer(corrida: Path) -> dict:
     filas = [json.loads(l) for l in (corrida / "detalle.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
     filas = sorted([f for f in filas if f.get("etiqueta") and f["detalle"].get("caracteristicas")],
@@ -27,7 +30,7 @@ def leer(corrida: Path) -> dict:
         "ids": [f["oficial"]["capture_id"] for f in filas],
         "verdad": [f["etiqueta"]["decision"] for f in filas],
         "X": [f["detalle"]["caracteristicas"] for f in filas],
-        "bloq": np.array([bool(f["detalle"].get("compuertas_fallidas")) for f in filas]),
+        "bloq": np.array([any(g not in IGNORAR for g in f["detalle"].get("compuertas_fallidas", [])) for f in filas]),
         "tok": np.array([f["traza"].get("tokens_entrada", 0) + f["traza"].get("tokens_salida", 0) for f in filas]),
     }
 
@@ -74,11 +77,16 @@ def main() -> None:
     ap.add_argument("--semillas", type=int, default=10)
     ap.add_argument("--l2", type=float, default=3.0)
     ap.add_argument("--salida", type=Path, default=None)
+    ap.add_argument("--rapida", default="dev_haiku_p3b", help="Corrida del modelo rápido.")
     ap.add_argument("--segunda", default="dev_haikupensar_p3", help="Corrida del segundo modelo.")
     ap.add_argument("--extra", default=None, help="Otra corrida de segundo modelo para comparar (p. ej. esfuerzo alto).")
     ap.add_argument("--sin-conjunta", action="store_true", help="No evaluar la fusión de las dos lecturas.")
+    ap.add_argument("--medir-binario", action="store_true",
+                    help="Entrena con todas pero puntúa solo las capturas aprobadas o rechazadas (sin «revisión manual»).")
+    ap.add_argument("--ignorar-compuertas", default="", help="Compuertas que no bloquean, separadas por coma.")
     a = ap.parse_args()
-    H, HR = leer(a.corridas / "dev_haiku_p3b"), leer(a.corridas / a.segunda)
+    IGNORAR.update(g for g in a.ignorar_compuertas.split(",") if g)
+    H, HR = leer(a.corridas / a.rapida), leer(a.corridas / a.segunda)
     EX = leer(a.corridas / a.extra) if a.extra else None
     assert H["ids"] == HR["ids"]
     verdad = H["verdad"]
@@ -110,11 +118,15 @@ def main() -> None:
             c3, u3 = cascada(pa_h, pr_h, H["bloq"], d_x, verdad)
             configs += [(f"{a.extra} solo", d_x, EX["tok"]),
                         (f"Cascada Haiku → {a.extra} (doble llave)", c3, H["tok"] + EX["tok"] * u3)]
+        m = [v != "revision_manual" for v in verdad] if a.medir_binario else [True] * len(verdad)
         for nombre, dec, tok in configs:
-            res.setdefault(nombre, []).append(medir(dec, verdad, tok))
+            res.setdefault(nombre, []).append(medir([d for d, k in zip(dec, m) if k], [v for v, k in zip(verdad, m) if k],
+                                                    np.asarray(tok)[np.array(m)]))
         print(f"semilla {s + 1}/{a.semillas}: " + ", ".join(f"{k.split(' (')[0]}={v[-1]['costo']}" for k, v in res.items()), flush=True)
 
-    lineas = [f"{a.semillas} particiones distintas de validación cruzada (5 pliegues × 2 repeticiones cada una), 100 capturas.", "",
+    n_medidas = sum(1 for v in verdad if v != "revision_manual") if a.medir_binario else len(verdad)
+    lineas = [f"{a.semillas} particiones distintas de validación cruzada (5 pliegues × 2 repeticiones cada una), "
+              f"{len(verdad)} capturas para entrenar, {n_medidas} puntuadas.", "",
               "| Configuración | Costo operativo (media ± desv.) | Mínimo–máximo | VP | FP | FN | Acierto general | Tokens/captura |",
               "|---|---:|---:|---:|---:|---:|---:|---:|"]
     base = np.array([r["costo"] for r in res["Haiku razonando solo"]])

@@ -1,6 +1,6 @@
 {
- "umbral_aprobar": 0.9298507700425722,
- "umbral_p_rechazo": 0.78,
- "corrida": "..\\datos\\corridas\\dev_haiku_p3b",
+ "umbral_aprobar": 0.9267532600398305,
+ "umbral_p_rechazo": 0.8863701044674833,
+ "corrida": "..\\datos\\corridas\\dev_haiku_p4",
  "costo_estimado_por_captura": 0.79
 }

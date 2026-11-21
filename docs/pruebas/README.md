@@ -169,3 +169,49 @@ done
 | p3 | La IA lee precio regular, oferta, volumen, tachado y unitario sin conocer el capturado; 16 compuertas; doble llave | 0 FP en todas las configuraciones. El esquema más grande suma ~1,300 tokens por llamada |
 | Haiku razonando | Haiku 5.5 con razonamiento adaptativo como segundo modelo | Misma calidad que Sonnet por 8 a 14 veces menos |
 | Segunda capa | 10 particiones: esfuerzo medio contra alto, y fusión de las dos lecturas | La cascada con esfuerzo medio es la más consistente; alto y fusión no mejoran |
+
+## Set de evaluación (21 de noviembre) y prompt v4
+
+**El set real:** 50 capturas sin etiquetas, con todos los metadatos y el mismo formato que desarrollo. 27 son de Bodega Aurrerá, Bara o Walmart, cadenas que en desarrollo nunca salieron aprobadas.
+
+### ¿Reentrenar solo con aprobadas y rechazadas?
+Lo medimos con 10 particiones, puntuando solo las 67 capturas de desarrollo que son aprobada o rechazada:
+
+| Entrenamiento | Costo en las 67 | Aprobadas bien | Aprobadas mal |
+|---|---:|---:|---:|
+| Con las 100 (incluye «revisión manual») | **28.1 ± 5.3** | 13.3 | 0 |
+| Solo con las 67 | 37.5 ± 1.0 | 0 | 0 |
+
+Entrenar sin las «revisión manual» sale **9 puntos peor**: el modelo pierde la confianza para aprobar. Las capturas de revisión sí enseñan algo.
+
+### Prompt v4: qué significa «lejana» para los analistas
+«Capturas lejanas» es el motivo de rechazo más común (18 de 34). Revisando las fotos de desarrollo:
+- En la mayoría, **la foto de etiqueta muestra el anaquel con la etiqueta como un recuadro chico**. El precio grande se lee, pero la descripción no.
+- En otras, la foto de producto muestra el anaquel completo en vez de una unidad de cerca.
+- El prompt v3 decía «el texto no se lee sin zoom», y el modelo daba por buenas esas fotos porque leía el precio grande. Solo detectaba 9 de las 18.
+
+El v4 define «lejana» así y agrega el campo `tamano_etiqueta`. Ahora detecta **18 de 18**.
+
+| Desarrollo, 10 particiones | Prompt v3 | Prompt v4 |
+|---|---:|---:|
+| Haiku razonando solo, 100 capturas | 70.3 ± 5.0 | **65.0 ± 1.3** |
+| Cascada Haiku → Haiku razonando, 100 capturas | 68.3 ± 5.0 | **64.8 ± 1.2** |
+| Haiku razonando solo, 67 aprobadas o rechazadas | 30.1 ± 5.5 | **25.6 ± 0.8** |
+| Cascada, 67 aprobadas o rechazadas | 28.1 ± 5.3 | **25.4 ± 0.9** |
+
+Con el v4, la cascada ya no gana nada: empata con Haiku razonando solo (−0.2 puntos) y gasta 13,700 tokens por captura contra 7,900. **Configuración elegida: Haiku razonando solo con el prompt v4.**
+
+También probamos quitar el bloqueo duro de la regla de calidad y dejar «lejana» solo como señal. Sale peor (65.7 y 26.3), así que se queda.
+
+### Versiones del JSON del set real
+| Versión | Configuración | Aprobadas | Rechazadas | Revisión | Tokens por captura |
+|---|---|---:|---:|---:|---:|
+| v1 | Prompt v3, cascada Haiku → Haiku razonando | 9 | 21 | 20 | 11,549 |
+| **v2** | Prompt v4, Haiku razonando solo | 4 | 18 | 28 | **7,743** |
+
+En la v2, 5 aprobaciones de la v1 pasan a revisión: 3 porque ahora se detectan como lejanas y 2 porque quedan apenas abajo del umbral. Ninguna decisión se cambió a mano; todas salen del motor.
+
+### Fachada estable para la demo
+- **El problema:** con fotos dudosas, el modelo alternaba entre «la fachada no corresponde» y «no se distingue» para la misma foto, y eso cambiaba la decisión.
+- **El arreglo:** ahora solo cuenta como «no corresponde» si el letrero dice otra cadena. En desarrollo y en el set real el modelo nunca contestó «no», así que la calibración y las decisiones no cambian.
+- **En Railway**, la caché de respuestas (`CACHE_IA_DIR`) hace que la misma foto reciba siempre la misma respuesta.
