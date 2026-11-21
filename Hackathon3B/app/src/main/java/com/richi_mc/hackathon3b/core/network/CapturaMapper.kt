@@ -336,19 +336,22 @@ object CapturaMapper {
     private fun List<EtiquetaImagen>.mejorDelGrupo(grupo: Set<String>): EtiquetaImagen? =
         filter { it.texto.lowercase() in grupo }.maxByOrNull { it.confianza }
 
-    /** `producto_visible` (foto del producto): falla si no hay etiquetas de producto (PRODUCTO_NO_VISIBLE). */
+    /** `producto_visible` (foto del producto): duda (advertencia, no bloquea) si no hay etiquetas de
+     * producto ni texto de empaque (PRODUCTO_NO_VISIBLE). */
     internal fun productoVisible(a: AnalisisImagen): List<ChequeoLocalDto> {
         if (a.etiquetas.isEmpty()) return emptyList()
         val mejor = a.etiquetas.mejorDelGrupo(GruposEtiquetas.producto)
         val principal = a.etiquetas.first()
+        val noVisible = Problema.PRODUCTO_NO_VISIBLE in a.problemas
+        val base = "etiqueta principal ${principal.texto} ${num(principal.confianza * 100.0, 0)}%"
         return listOf(
             ChequeoLocalDto(
                 nombre = "producto_visible",
                 foto = TipoFoto.PRODUCTO.contrato,
-                resultado = if (Problema.PRODUCTO_NO_VISIBLE in a.problemas) FALLA else OK,
+                resultado = if (noVisible) DUDA else OK,
                 puntaje = mejor?.confianza?.toDouble()?.coerceIn(0.0, 1.0),
                 valor = principal.texto,
-                detalle = "etiqueta principal ${principal.texto} ${num(principal.confianza * 100.0, 0)}%",
+                detalle = if (noVisible) "$base; sin etiqueta de producto ni texto de empaque (advertencia)" else base,
             )
         )
     }

@@ -152,7 +152,7 @@ class MlKitImageAnalyzer(
             if (labeler != null) {
                 Log.d("Etiquetas", "$tipo: " + etiquetas.joinToString { "${it.texto} ${"%.2f".format(it.confianza)}" })
             }
-            for (p in problemasPorEtiquetas(tipo, etiquetas, hayCodigo = codigo != null)) {
+            for (p in problemasPorEtiquetas(tipo, etiquetas, hayCodigo = codigo != null, textoOcr = ocr.texto)) {
                 if (p !in problemas) problemas += p
             }
 

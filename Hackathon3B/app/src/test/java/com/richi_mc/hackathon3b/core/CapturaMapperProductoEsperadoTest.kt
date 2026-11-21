@@ -261,12 +261,12 @@ class CapturaMapperProductoEsperadoTest {
     }
 
     @Test
-    fun producto_no_visible_es_falla_y_fachada_dudosa_es_duda() {
+    fun producto_no_visible_y_fachada_dudosa_son_duda() {
         val prod = analisis(TipoFoto.PRODUCTO, listOf(et("Wall", 0.8f)), listOf(Problema.PRODUCTO_NO_VISIBLE), "7501055363056")
         val fach = analisis(TipoFoto.FACHADA, listOf(et("Wall", 0.7f)), listOf(Problema.FACHADA_NO_PARECE_TIENDA))
         val ch = dto(captura(producto = prod), sesion(fach)).chequeosLocales
         val pv = ch.unico("producto_visible", "producto")
-        assertEquals("falla", pv.resultado)
+        assertEquals("duda", pv.resultado)
         assertNull(pv.puntaje) // ninguna etiqueta del grupo producto
         assertEquals("Wall", pv.valor)
         assertEquals("duda", ch.unico("fachada_tienda", "fachada").resultado)

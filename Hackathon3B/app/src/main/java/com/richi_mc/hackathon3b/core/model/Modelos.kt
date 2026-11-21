@@ -34,7 +34,14 @@ enum class Problema(val corto: String, val mensaje: String, val bloqueante: Bool
     SIN_PRECIO("Sin precio", "No se encontró el precio en la etiqueta: encuadra la etiqueta completa."),
     ETIQUETA_LEJOS("Muy lejos", "Acércate a la etiqueta para leer el precio.", bloqueante = false),
     SIN_PRECIO_UNITARIO("Sin precio unitario", "No se ve el precio unitario (por kg / por litro). El servidor decidirá.", bloqueante = false),
-    PRODUCTO_NO_VISIBLE("Sin producto", "No se ve un producto en la foto: encuadra el producto completo y de frente."),
+    /**
+     * Señal débil (Image Labeling genérico + sin texto de empaque): solo advierte; decide el servidor.
+     * Bloquear costaría 3 por cada captura válida rechazada vs 1 de revisión manual.
+     */
+    PRODUCTO_NO_VISIBLE(
+        "¿Producto?", "No parece haber un producto en la foto: encuadra el producto completo y de frente.",
+        bloqueante = false,
+    ),
     FACHADA_NO_PARECE_TIENDA("¿Fachada?", "La foto no parece la fachada de una tienda: incluye el letrero y la entrada.", bloqueante = false),
     POSIBLE_FOTO_DE_PANTALLA("¿Pantalla?", "Parece una foto de una pantalla: fotografía el objeto real, no un monitor o celular.", bloqueante = false);
 }

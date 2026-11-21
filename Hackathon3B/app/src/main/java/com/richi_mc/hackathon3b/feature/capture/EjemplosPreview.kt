@@ -41,7 +41,7 @@ internal object EjemplosPreview {
         TipoFoto.PRODUCTO, "LECHE ENTERA 1 L\nLALA", codigo = "7501055300075",
         etiquetas = listOf(EtiquetaImagen("Milk", 0.91f, 0), EtiquetaImagen("Drink", 0.84f, 1), EtiquetaImagen("Bottle", 0.66f, 2)),
     )
-    /** Foto de una pared: sin etiquetas de producto (PRODUCTO_NO_VISIBLE). */
+    /** Foto de una pared: sin etiquetas de producto ni texto de empaque (PRODUCTO_NO_VISIBLE, advertencia no bloqueante). */
     val productoNoVisible = analisis(
         TipoFoto.PRODUCTO, "", problemas = listOf(Problema.PRODUCTO_NO_VISIBLE),
         etiquetas = listOf(EtiquetaImagen("Wall", 0.82f, 0), EtiquetaImagen("Floor", 0.55f, 1)),

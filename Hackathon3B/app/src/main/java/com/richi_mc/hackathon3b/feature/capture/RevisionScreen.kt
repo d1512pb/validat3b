@@ -666,7 +666,7 @@ private fun RevisionCategoriaPreview() {
     }
 }
 
-/** Foto de la pared: PRODUCTO_NO_VISIBLE bloquea y se ven las etiquetas que salieron. */
+/** Foto de la pared: PRODUCTO_NO_VISIBLE es advertencia (no bloquea, se puede retomar) y se ven las etiquetas. */
 @Preview(showBackground = true, backgroundColor = 0xFF020617, heightDp = 1900)
 @Composable
 private fun RevisionProductoNoVisiblePreview() {
