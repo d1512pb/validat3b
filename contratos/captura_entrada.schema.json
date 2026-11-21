@@ -1,0 +1,355 @@
+{
+  "$defs": {
+    "ChequeoLocal": {
+      "description": "Resultado de una validación que la app ya corrió en el teléfono.",
+      "properties": {
+        "nombre": {
+          "description": "p. ej. nitidez, pantalla, distancia, codigo_barras, etiqueta_presente.",
+          "title": "Nombre",
+          "type": "string"
+        },
+        "foto": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TipoFoto"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Foto revisada; null si aplica a toda la captura."
+        },
+        "resultado": {
+          "enum": [
+            "ok",
+            "falla",
+            "duda"
+          ],
+          "title": "Resultado",
+          "type": "string"
+        },
+        "puntaje": {
+          "anyOf": [
+            {
+              "maximum": 1,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Confianza del chequeo, de 0 a 1.",
+          "title": "Puntaje"
+        },
+        "valor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Lo que se leyó, p. ej. el código de barras o el precio.",
+          "title": "Valor"
+        },
+        "detalle": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detalle"
+        }
+      },
+      "required": [
+        "nombre",
+        "resultado"
+      ],
+      "title": "ChequeoLocal",
+      "type": "object"
+    },
+    "MetadatosApp": {
+      "additionalProperties": true,
+      "description": "Metadatos del teléfono y de la app. Se aceptan campos extra.",
+      "properties": {
+        "dispositivo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Modelo del teléfono.",
+          "title": "Dispositivo"
+        },
+        "sistema_operativo": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sistema Operativo"
+        },
+        "version_app": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Version App"
+        },
+        "capturista_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capturista Id"
+        },
+        "ubicacion": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Ubicacion"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "MetadatosApp",
+      "type": "object"
+    },
+    "ProductoEsperado": {
+      "additionalProperties": true,
+      "description": "Producto o contratipo que el capturista dice estar fotografiando.",
+      "properties": {
+        "sku": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "SKU del catálogo de referencia.",
+          "title": "Sku"
+        },
+        "descripcion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Descripción del catálogo.",
+          "title": "Descripcion"
+        },
+        "marca": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Marca"
+        },
+        "contenido": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Contenido o presentación, p. ej. '600 ml'.",
+          "title": "Contenido"
+        },
+        "codigo_barras": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Código de barras del catálogo.",
+          "title": "Codigo Barras"
+        },
+        "es_contratipo": {
+          "default": false,
+          "description": "True si se captura un contratipo y no el producto 3B.",
+          "title": "Es Contratipo",
+          "type": "boolean"
+        }
+      },
+      "title": "ProductoEsperado",
+      "type": "object"
+    },
+    "TipoFoto": {
+      "enum": [
+        "fachada",
+        "producto",
+        "etiqueta"
+      ],
+      "title": "TipoFoto",
+      "type": "string"
+    },
+    "Ubicacion": {
+      "properties": {
+        "latitud": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Latitud",
+          "type": "number"
+        },
+        "longitud": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Longitud",
+          "type": "number"
+        },
+        "precision_m": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Precisión del GPS en metros.",
+          "title": "Precision M"
+        }
+      },
+      "required": [
+        "latitud",
+        "longitud"
+      ],
+      "title": "Ubicacion",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Datos de una captura. Viaja como el campo `captura` (texto JSON) del multipart.",
+  "properties": {
+    "version_contrato": {
+      "default": "0.1.0",
+      "description": "Versión del contrato con que se armó.",
+      "title": "Version Contrato",
+      "type": "string"
+    },
+    "capture_id": {
+      "examples": [
+        "CAP-000123"
+      ],
+      "maxLength": 64,
+      "minLength": 1,
+      "title": "Capture Id",
+      "type": "string"
+    },
+    "codigo_barras_capturado": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Código que capturó la app.",
+      "title": "Codigo Barras Capturado"
+    },
+    "producto_esperado": {
+      "$ref": "#/$defs/ProductoEsperado"
+    },
+    "cadena": {
+      "description": "Cadena seleccionada, p. ej. 'Bodega Aurrerá'.",
+      "title": "Cadena",
+      "type": "string"
+    },
+    "tienda": {
+      "description": "Tienda seleccionada (nombre o id).",
+      "title": "Tienda",
+      "type": "string"
+    },
+    "tienda_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tienda Id"
+    },
+    "fecha_hora_captura": {
+      "description": "ISO 8601 con zona horaria.",
+      "format": "date-time",
+      "title": "Fecha Hora Captura",
+      "type": "string"
+    },
+    "metadatos_app": {
+      "$ref": "#/$defs/MetadatosApp"
+    },
+    "chequeos_locales": {
+      "description": "Validaciones que ya corrió el teléfono. El servidor las usa como pista; no confía ciegamente.",
+      "items": {
+        "$ref": "#/$defs/ChequeoLocal"
+      },
+      "title": "Chequeos Locales",
+      "type": "array"
+    }
+  },
+  "required": [
+    "capture_id",
+    "producto_esperado",
+    "cadena",
+    "tienda",
+    "fecha_hora_captura"
+  ],
+  "title": "CapturaEntrada",
+  "type": "object"
+}
