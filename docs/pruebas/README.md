@@ -2,6 +2,7 @@
 
 21 de noviembre de 2026. Todas las pruebas usan las **100 capturas etiquetadas de desarrollo** del reto: 33 aprobadas, 34 rechazadas y 33 a revisión manual. Las imágenes y los metadatos de 3B **no** están en el repositorio (`datos/` va en `.gitignore`). Aquí solo quedan resultados agregados.
 
+- [`peor-caso.md`](peor-caso.md): **tabla simple para el pitch**, con el costo por imagen en el peor caso (todas las capturas pasan por el modelo) y la precisión de cada modelo.
 - [`comparacion.md`](comparacion.md): la comparación final entre configuraciones (generada con `scripts/comparar.py`).
 - [`reportes/`](reportes/): el `reporte.json` de cada corrida (tokens, tiempo y evaluación agregada).
 
