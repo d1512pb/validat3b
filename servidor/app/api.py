@@ -14,7 +14,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app import VERSION_MOTOR
 from app.config import config
 from app.contrato import VERSION_CONTRATO, CapturaEntrada, DetalleError, ErrorRespuesta, RespuestaCaptura
-from app.motor import orquestador
+from app.motor import ia, orquestador
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -70,7 +70,8 @@ def salud() -> dict:
         "modo": cfg.modo,
         "modelo_rapido": cfg.modelo_rapido,
         "modelo_fuerte": cfg.modelo_fuerte if cfg.escalar_a_fuerte else None,
-        "ia_configurada": bool(cfg.foundry_api_key),
+        "proveedor": ia.proveedor(),
+        "ia_configurada": bool(cfg.foundry_api_key or cfg.anthropic_api_key),
     }
 
 
