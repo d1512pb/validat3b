@@ -52,6 +52,7 @@ class Evaluacion:
     p_rechazo: float | None = None   # None = se usa 1 - p_valida
     umbrales: dict | None = None     # umbrales calibrados del modelo que decidió
     motivo_aprendido: str | None = None  # reason_code del clasificador entrenado, si existe
+    compuertas_fallidas: list[tuple[str, str]] = field(default_factory=list)  # (nombre, detalle): impiden aprobar
 
 
 def senales_locales(c: CapturaEntrada, fotos: dict[str, Foto]) -> Evaluacion:
@@ -152,23 +153,32 @@ def principal(fallas: list[Falla]) -> Falla | None:
 
 def resultado(c: CapturaEntrada, ev: Evaluacion, a: AnalisisIA | None) -> tuple[ResultadoOficial, list[str]]:
     decision = decidir(ev.p_valida, ev.p_rechazo, ev.umbrales)
+    bloqueada = decision == Decision.aprobada and bool(ev.compuertas_fallidas)
+    if bloqueada:  # alguna compuerta no pasó: nunca se aprueba, va a revisión manual
+        decision = Decision.revision_manual
     p_rech = 1 - ev.p_valida if ev.p_rechazo is None else ev.p_rechazo
     if decision == Decision.rechazada and not any(x.severidad >= 0.5 for x in ev.fallas) and a is not None:
         # La fusión rechaza sin una falla fuerte de reglas: el motivo sale del peor puntaje observado.
         ev.fallas.append(Falla(motivo_por_puntajes(a), 0.5, a.motivo))
     fuertes = {x.codigo for x in ev.fallas if x.severidad >= 0.5}
     top = principal(ev.fallas)
-    if ev.motivo_aprendido and decision != Decision.aprobada:
+    # El clasificador aprendido solo conoce los motivos del set de desarrollo (lejana, borrosa, descripción).
+    # Ante trampas, pantallas o producto no visible manda la regla, que sí conoce esos motivos.
+    fuera_de_lo_aprendido = a is not None and (a.fotos_sin_relacion or a.es_foto_de_pantalla or not a.producto_visible)
+    if ev.motivo_aprendido and decision != Decision.aprobada and not fuera_de_lo_aprendido:
         # El clasificador entrenado con los motivos reales del analista manda sobre las reglas.
         detalle = next((f.detalle for f in ev.fallas if f.codigo == ev.motivo_aprendido), "") or (a.motivo if a else "")
         top = Falla(ev.motivo_aprendido, 1.0, detalle)
         fuertes.add(ev.motivo_aprendido)
     frentes = {FRENTE[cod] for cod in fuertes}
+    nombres_cf = {n for n, _ in ev.compuertas_fallidas}
     validaciones = Validaciones(
-        tienda_fachada=Estado.falla if "FACHADA_INCORRECTA" in fuertes else Estado.ok,
-        producto=Estado.falla if ("A" in frentes or fuertes & {"IMAGEN_BORROSA", "CAPTURA_LEJANA", "FOTO_DE_PANTALLA"}) else Estado.ok,
-        codigo_barras=ev.codigo_barras_estado,
-        evidencia_precio=Estado.falla if "C" in frentes else Estado.ok,
+        tienda_fachada=Estado.falla if ("FACHADA_INCORRECTA" in fuertes or "fachada" in nombres_cf) else Estado.ok,
+        producto=Estado.falla if ("A" in frentes or fuertes & {"IMAGEN_BORROSA", "CAPTURA_LEJANA", "FOTO_DE_PANTALLA"}
+                                  or nombres_cf & {"producto", "descripcion", "calidad", "sin_trampa"}) else Estado.ok,
+        codigo_barras=Estado.falla if "codigo_barras" in nombres_cf else ev.codigo_barras_estado,
+        evidencia_precio=Estado.falla if ("C" in frentes or nombres_cf & {
+            "etiqueta", "precio_legible", "precio_coincide", "precio_en_rango", "precio_unitario_coherente"}) else Estado.ok,
     )
     if decision == Decision.aprobada:
         reason, confianza = None, ev.p_valida
@@ -179,7 +189,11 @@ def resultado(c: CapturaEntrada, ev: Evaluacion, a: AnalisisIA | None) -> tuple[
         # Revisión: qué tan lejos estamos de poder aprobar o rechazar con seguridad.
         confianza = p_rech if decision == Decision.rechazada else max(1 - ev.p_valida, 1 - p_rech) * 0.5 + 0.25
         reason = top.codigo if top else None
-        if top:
+        if bloqueada:
+            confianza = 0.9  # el modelo quería aprobar pero una regla lo impide: la revisión es la decisión segura
+            reason = top.codigo if top and top.severidad >= 0.5 else None
+            explicacion = "No se aprueba: " + " ".join(d for _, d in ev.compuertas_fallidas[:3] if d)
+        elif top:
             explicacion = top.detalle or REASON_CODES_PROVISIONALES[top.codigo]
         else:
             explicacion = "La evidencia no alcanza la confianza necesaria para aprobar."

@@ -9,6 +9,45 @@
 3. **Claude Sonnet 5.5** revisa solo el resto: el 62–68% de las capturas en desarrollo.
 4. **Fusión aprendida:** convierte lo que observa cada modelo en probabilidades calibradas. Umbrales elegidos por costo y con precisión de aprobaciones ≥ 97%.
 
+## v0.3: reglas para no aprobar nada inválido
+
+Una captura **solo se aprueba si pasan todas las compuertas**. Si cualquiera falla o no se puede verificar, va a revisión manual: cuesta 1, contra 10 de aprobar una inválida. Las compuertas no rechazan; solo impiden aprobar. Cada falla queda en `traza.compuertas_fallidas`.
+
+| Compuerta | Qué exige |
+|---|---|
+| `fotos_completas` | Las 3 fotos llegan y se pueden abrir |
+| `sin_trampa` | Ninguna foto sin relación ni tomada a una pantalla |
+| `calidad` | No borrosa ni lejana; nitidez y legibilidad ≥ 0.5 |
+| `fachada` | Es una tienda y no contradice la cadena seleccionada |
+| `producto` | El producto coincide, sin contradicción en marca ni contenido |
+| `descripcion` | Se leen marca, nombre y contenido |
+| `etiqueta` | La etiqueta es del producto y no hay varias que confundan |
+| `precio_legible` | Se lee el precio |
+| `precio_coincide` | El precio capturado (o el que leyó el teléfono) es igual al regular o al de oferta de la etiqueta |
+| `precio_en_rango` | El precio está dentro del rango de referencia del catálogo |
+| `precio_unitario_coherente` | El precio unitario cuadra con precio ÷ contenido (±15%) |
+| `codigo_barras` | El código de la foto del producto es el esperado |
+| `foto_no_repetida` | La foto no se usó en otra captura |
+| `chequeos_movil` | El teléfono no reportó falla de nitidez, distancia, etiqueta o precio |
+| `confianza_ia` | El modelo está seguro (≥ 0.8) |
+| `doble_verificacion` | Si Haiku aprueba solo, Sonnet debe confirmarlo; si no lo confirma, va a revisión |
+
+- **Lectura independiente del precio:** la IA lee el precio sin conocer el capturado y la comparación se hace en código, para que el modelo no se deje llevar por el número esperado.
+- **Lo que reporta la IA del precio:** precio regular, precio de oferta, promoción por volumen, precio tachado, precio unitario con su unidad y anomalías.
+- **Pruebas:** 45 pruebas automáticas cubren cada regla.
+
+### Medido con las 100 capturas de desarrollo (prompt v3)
+
+| | Costo (fuera de muestra) | Aprobaciones inválidas | Tokens por captura |
+|---|---:|---:|---:|
+| Solo Haiku + compuertas | 79–83 | 0 | 6,600 |
+| Solo Sonnet + compuertas | 63–73 | 0 | 6,700 |
+| **Cascada + compuertas + doble llave (desplegado)** | **~70** | **0** | **~11,900** |
+
+- **Medición sobre los mismos datos del entrenamiento:** la configuración final da 52, con 0 aprobaciones inválidas y 81% de acierto en el motivo de rechazo.
+- **Compuertas de precio que se activaron:** 5 veces precio distinto y 4 veces precio unitario incoherente.
+- **Costo en tokens:** el esquema del prompt v3 suma ~1,300 tokens por llamada, y la doble llave agrega Sonnet en las aprobaciones.
+
 ## Costo operativo (la calificación)
 
 El costo operativo es la suma de puntos: 0 si acierta, 1 por revisión manual, 3 por rechazar una válida y 10 por aprobar una inválida. Las cifras son **fuera de muestra**: validación cruzada repetida, es decir, cómo le iría con capturas nuevas.

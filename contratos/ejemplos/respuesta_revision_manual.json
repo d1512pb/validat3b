@@ -14,7 +14,7 @@
   "explicacion": "Toma la fachada de la tienda seleccionada, con el letrero visible.",
   "traza": {
     "version_motor": "0.1.0",
-    "version_contrato": "0.2.0",
+    "version_contrato": "0.3.0",
     "capa_decisiva": "simulado",
     "modelos_usados": [],
     "tokens_entrada": 0,
@@ -23,6 +23,10 @@
     "tipo_precio": "regular",
     "precio_unitario_detectado": 7.08,
     "promocion": null,
+    "precio_regular": null,
+    "precio_promocion": null,
+    "compuertas_fallidas": [],
+    "doble_verificacion": false,
     "avisos": [
       "Toma la fachada de la tienda seleccionada, con el letrero visible."
     ]

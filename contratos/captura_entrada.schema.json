@@ -364,7 +364,7 @@
   "description": "Datos de una captura. Viaja como el campo `captura` (texto JSON) del multipart.",
   "properties": {
     "version_contrato": {
-      "default": "0.2.0",
+      "default": "0.3.0",
       "description": "Versión del contrato con que se armó.",
       "title": "Version Contrato",
       "type": "string"

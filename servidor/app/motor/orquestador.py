@@ -8,7 +8,7 @@ from app import VERSION_MOTOR
 from app.config import config
 from app.contrato import CapturaEntrada, Decision, Estado, RespuestaCaptura, Traza, Validaciones
 from app.motor import decision as dec
-from app.motor import fusion, geo, ia, simulado
+from app.motor import compuertas, fusion, geo, ia, simulado
 from app.motor.huellas import IndiceHuellas, dhash
 from app.motor.imagenes import Foto, cargar
 
@@ -52,11 +52,19 @@ def validar_detallado(c: CapturaEntrada, fotos_bytes: dict[str, bytes | None], m
     def evaluar(analisis: ia.AnalisisIA, modelo_ia: str, etapa: str) -> dec.Evaluacion:
         fallas_ia = dec.senales_ia(c, analisis)
         ev = dec.combinar(local, fallas_ia, analisis.confianza)
-        x = fusion.caracteristicas(c, fotos, ev.p_valida, local.codigo_barras_estado == Estado.falla, analisis, extra)
+        codigo_falla = local.codigo_barras_estado == Estado.falla
+        x = fusion.caracteristicas(c, fotos, ev.p_valida, codigo_falla, analisis, extra)
+        cf = compuertas.fallidas(compuertas.evaluar(c, fotos, analisis, extra, codigo_falla))
+        for g in cf:  # cada compuerta fallida también es una señal para la fusión
+            x[f"compuerta_{g.nombre}_falla"] = 1.0
+        x["compuertas_fallidas"] = float(len(cf))
         p, p_rech, fuente = fusion.p_final(x, ev.p_valida, modelo_ia)
         umbrales = fusion.umbrales(modelo_ia, etapa) or fusion.umbrales(modelo_ia, "final")
+        if cfg.compuertas_activas:
+            ev.compuertas_fallidas = [(g.nombre, g.detalle) for g in cf]
         registro = dict(p_reglas=ev.p_valida, p_final=p, p_rechazo=p_rech, fuente_p=fuente, caracteristicas=x,
-                        umbrales=umbrales, fallas=[(f.codigo, round(f.severidad, 3)) for f in ev.fallas])
+                        umbrales=umbrales, compuertas_fallidas=[g.nombre for g in cf],
+                        fallas=[(f.codigo, round(f.severidad, 3)) for f in ev.fallas])
         detalle.update(registro)
         detalle.setdefault("por_modelo", {})[modelo_ia] = registro
         ev.p_valida, ev.p_rechazo, ev.umbrales = p, p_rech, umbrales
@@ -101,6 +109,27 @@ def validar_detallado(c: CapturaEntrada, fotos_bytes: dict[str, bytes | None], m
     if analisis is None:
         traza.capa_decisiva = "respaldo"
         return _respaldo(c, traza, inicio), detalle
+
+    # 4. Doble llave: si el rápido quiere aprobar solo, el fuerte debe confirmarlo antes de aprobar.
+    quiere_aprobar = (dec.decidir(ev.p_valida, ev.p_rechazo, ev.umbrales) == Decision.aprobada
+                      and not ev.compuertas_fallidas)
+    if quiere_aprobar and cfg.verificar_aprobaciones and cfg.modelo_fuerte not in traza.modelos_usados:
+        try:
+            r = ia.analizar(c, fotos, cfg.modelo_fuerte)
+            _sumar(traza, r, "fuerte")
+            detalle["analisis"]["fuerte"] = r.analisis.model_dump()
+            ev_f = evaluar(r.analisis, cfg.modelo_fuerte, "final")
+            if dec.decidir(ev_f.p_valida, ev_f.p_rechazo, ev_f.umbrales) == Decision.aprobada and not ev_f.compuertas_fallidas:
+                traza.doble_verificacion = True
+            else:
+                # El fuerte no confirma: manda su lectura, y si también quería aprobar, a revisión.
+                if not ev_f.compuertas_fallidas:
+                    ev_f.compuertas_fallidas = [("doble_verificacion", "El segundo modelo no confirmó la aprobación.")]
+                ev, analisis = ev_f, r.analisis
+        except ia.ERRORES_IA as e:
+            log.warning("Falla de la verificación en %s: %s", c.capture_id, e)
+            ev.compuertas_fallidas = [("doble_verificacion", "No se pudo confirmar la aprobación con el segundo modelo.")]
+    detalle["compuertas_finales"] = [n for n, _ in ev.compuertas_fallidas]
     return _armar(c, ev, analisis, traza, inicio), detalle
 
 
@@ -118,6 +147,9 @@ def _armar(c, ev, analisis, traza: Traza, inicio: float) -> RespuestaCaptura:
         traza.tipo_precio = analisis.tipo_precio
         traza.precio_unitario_detectado = analisis.precio_unitario
         traza.promocion = analisis.promocion
+        traza.precio_regular = analisis.precio_regular
+        traza.precio_promocion = analisis.precio_promocion
+    traza.compuertas_fallidas = [f"{n}: {d}" if d else n for n, d in ev.compuertas_fallidas]
     traza.latencia_ms = int((time.perf_counter() - inicio) * 1000)
     return RespuestaCaptura(**oficial.model_dump(), traza=traza)
 

@@ -98,10 +98,14 @@ def resumen(predicciones: list[dict], etiquetas: dict[str, Etiqueta]) -> dict:
     }
 
 
-def decisiones_3(pa: np.ndarray, pr: np.ndarray, t_apr: float, t_rech: float) -> np.ndarray:
+def decisiones_3(pa: np.ndarray, pr: np.ndarray, t_apr: float, t_rech: float, bloqueadas=None) -> np.ndarray:
+    """bloqueadas: capturas con alguna compuerta fallida; nunca se aprueban (van a revisión)."""
     d = np.full(len(pa), "revision_manual", dtype=object)
     d[pr >= t_rech] = "rechazada"
-    d[pa >= t_apr] = "aprobada"
+    apr = pa >= t_apr
+    if bloqueadas is not None:
+        apr &= ~np.asarray(bloqueadas, bool)
+    d[apr] = "aprobada"
     return d
 
 
@@ -113,7 +117,7 @@ def costo_3(decisiones, verdad) -> tuple[int, int, int]:
 
 
 def optimizar_umbrales_3(pa, pr, verdad, precision_minima: float = PRECISION_MINIMA, margen: float = 0.05,
-                         usar_cota: bool = False) -> dict:
+                         usar_cota: bool = False, bloqueadas=None) -> dict:
     """Umbrales (aprobar sobre p_aprobar, rechazar sobre p_rechazo) de menor costo.
 
     Robustez: la precisión de aprobaciones debe cumplirse en t_aprobar y también en t_aprobar - margen,
@@ -126,7 +130,7 @@ def optimizar_umbrales_3(pa, pr, verdad, precision_minima: float = PRECISION_MIN
     mejor = None
 
     def precision_ok(ta: float) -> tuple[bool, float, float]:
-        _, n, ok = costo_3(decisiones_3(pa, np.zeros_like(pr), ta, nunca), verdad)
+        _, n, ok = costo_3(decisiones_3(pa, np.zeros_like(pr), ta, nunca, bloqueadas), verdad)
         prec = ok / n if n else 1.0
         cumple = prec >= precision_minima and (not usar_cota or wilson_inferior(ok, n) >= precision_minima)
         return cumple, prec, wilson_inferior(ok, n)
@@ -140,7 +144,7 @@ def optimizar_umbrales_3(pa, pr, verdad, precision_minima: float = PRECISION_MIN
         else:
             prec, cota = 1.0, 1.0
         for tr in list(cand_r) + [nunca]:
-            c, n, _ = costo_3(decisiones_3(pa, pr, ta, tr), verdad)
+            c, n, _ = costo_3(decisiones_3(pa, pr, ta, tr, bloqueadas), verdad)
             if mejor is None or c < mejor["costo"]:
                 mejor = {"costo": c, "umbral_aprobar": float(ta), "umbral_p_rechazo": float(tr),
                          "aprobadas": n, "precision": round(prec, 4), "cota_inferior": round(cota, 4)}

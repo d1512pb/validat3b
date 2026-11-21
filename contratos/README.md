@@ -1,4 +1,4 @@
-# Contrato móvil ↔ servidor (v0.2.0)
+# Contrato móvil ↔ servidor (v0.3.0)
 
 Qué manda la app, qué regresa el servidor y qué errores puede haber. Los archivos `.schema.json` y `openapi.json` se generan desde `servidor/app/contrato.py`: no se editan a mano.
 
@@ -80,6 +80,9 @@ Son los campos del formato oficial del reto más `traza`: [`respuesta_captura.sc
 - **`decision`:** `aprobada`, `rechazada` o `revision_manual`.
 - **`reason_code`:** es `null` cuando se aprueba.
 - **`traza.avisos`:** frases cortas para mostrarle al capturista, p. ej. «Acércate más». Úsenlas para pedirle que repita la foto.
+- **`traza.compuertas_fallidas`:** por qué no se aprobó, una regla por línea, p. ej. `precio_coincide: El precio capturado ($21) no coincide con la etiqueta ($18.5).` Sirve para mostrarle al capturista qué corregir.
+- **`traza.tipo_precio`, `precio_regular`, `precio_promocion`, `promocion`:** lo que leyó la IA en la etiqueta (regular, oferta o por volumen).
+- **`traza.doble_verificacion`:** `true` si la aprobación la confirmaron los dos modelos.
 - **`traza.capa_decisiva`:** qué capa decidió: `local`, `rapido` (Haiku), `fuerte` (Sonnet), `respaldo` o `simulado`.
 
 Ejemplos completos: [`respuesta_aprobada.json`](ejemplos/respuesta_aprobada.json), [`respuesta_rechazada.json`](ejemplos/respuesta_rechazada.json) y [`respuesta_revision_manual.json`](ejemplos/respuesta_revision_manual.json).
@@ -137,6 +140,7 @@ const resultado = await r.json();   // RespuestaCaptura o { error }
 
 ## Cambios
 
+- **0.3.0** (aditivo): en `traza` vienen `compuertas_fallidas`, `precio_regular`, `precio_promocion` y `doble_verificacion`. **Pídanle a la app que mande `precio_capturado`**: si no viene, el servidor usa el `valor` del chequeo `precio_leido`.
 - **0.2.0** (aditivo): `precio_capturado`, `marca_capturada` y los campos del catálogo dentro de `producto_esperado`, con los mismos datos que trae el set oficial de 3B. Lo que ya mandaban sigue funcionando.
 
 ## Versionado

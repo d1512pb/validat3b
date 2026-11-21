@@ -11,7 +11,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-VERSION_CONTRATO = "0.2.0"
+VERSION_CONTRATO = "0.3.0"
 
 # Lista provisional, armada con los casos reales de la página del reto.
 # Se reemplaza por la lista oficial de reason_code cuando llegue con los datos.
@@ -153,6 +153,12 @@ class Traza(BaseModel):
     tipo_precio: Literal["regular", "oferta", "volumen", "desconocido"] | None = None
     precio_unitario_detectado: float | None = None
     promocion: str | None = Field(None, description="Texto de la promoción si la hay, p. ej. '2x$50'.")
+    precio_regular: float | None = Field(None, description="Precio normal que muestra la etiqueta.")
+    precio_promocion: float | None = Field(None, description="Precio con descuento por pieza, si lo hay.")
+    compuertas_fallidas: list[str] = Field(
+        default_factory=list,
+        description="Por qué no se aprobó: cada compuerta que no pasó (p. ej. 'precio_coincide: ...'). Vacía si todo pasó.")
+    doble_verificacion: bool = Field(False, description="True si la aprobación se confirmó con el modelo fuerte.")
     avisos: list[str] = Field(default_factory=list, description="Mensajes cortos para el capturista.")
 
 

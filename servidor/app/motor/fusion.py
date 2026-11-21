@@ -66,8 +66,16 @@ def caracteristicas(c: CapturaEntrada, fotos: dict[str, Foto], p_reglas: float, 
                       "fachada_es_tienda", "producto_visible", "descripcion_completa", "etiqueta_visible",
                       "precio_unitario_visible"):
             x[f"ia_{campo}"] = float(getattr(a, campo))
-        for campo in ("fachada_coincide", "producto_coincide", "etiqueta_corresponde", "tipo_precio"):
-            x[f"ia_{campo}_{getattr(a, campo)}"] = 1.0
+        for campo in ("fachada_coincide", "producto_coincide", "etiqueta_corresponde", "tipo_precio",
+                      "marca_coincide", "contenido_coincide"):
+            v = getattr(a, campo, None)
+            if v is not None:
+                x[f"ia_{campo}_{v}"] = 1.0
+        for campo in ("varias_etiquetas", "precio_tachado"):
+            if getattr(a, campo, None) is not None:
+                x[f"ia_{campo}"] = float(getattr(a, campo))
+        if getattr(a, "anomalias", None) is not None:
+            x["ia_anomalias"] = float(len(a.anomalias))
         x["ia_precio_presente"] = float(a.precio is not None)
         x["ia_confianza"] = a.confianza
         for campo in ("nitidez_producto", "nitidez_etiqueta", "tamano_producto", "legibilidad_etiqueta"):

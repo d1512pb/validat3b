@@ -40,6 +40,16 @@ class Config(BaseSettings):
     # Si se define, la app debe mandar el header X-API-Key con este valor
     servidor_token: str | None = None
 
+    # Compuertas de aprobación (app/motor/compuertas.py): aprobar solo si todas pasan.
+    compuertas_activas: bool = True
+    compuerta_nitidez_min: float = 0.5
+    compuerta_legibilidad_min: float = 0.5
+    compuerta_confianza_min: float = 0.8
+    compuerta_desvio_unitario: float = 0.15
+    compuerta_anomalias: bool = False  # el modelo lista anomalías triviales en 18 de 33 aprobadas reales: solo señal
+    # Doble llave: toda aprobación del modelo rápido se confirma con el fuerte antes de aprobar.
+    verificar_aprobaciones: bool = True
+
     # Caché en disco de respuestas del modelo (None = sin caché). El modo lote la activa.
     cache_ia_dir: str | None = None
     # Tokens por minuto de la llave (0 = sin límite). Se ajusta cuando sepamos el TPM real.

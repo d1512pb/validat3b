@@ -27,7 +27,8 @@ def cargar(corrida: Path, l2: float):
     pr = fuera_de_muestra(X, np.array([v == "rechazada" for v in verdad], int), 5, 5, l2)
     tok = [(f["traza"].get("tokens_entrada", 0), f["traza"].get("tokens_salida", 0)) for f in filas]
     ids = [f["oficial"]["capture_id"] for f in filas]
-    return ids, verdad, pa, pr, tok
+    bloq = np.array([bool(f["detalle"].get("compuertas_fallidas")) for f in filas])
+    return ids, verdad, pa, pr, tok, bloq
 
 
 def usd(tok, modelo: str) -> float:
@@ -43,20 +44,26 @@ def main() -> None:
     ap.add_argument("--guardar", action="store_true", help="Guarda los umbrales de cascada elegidos para el modelo rápido.")
     ap.add_argument("--max-escala", type=float, default=1.0, help="Máxima fracción que puede escalar al fuerte.")
     ap.add_argument("--modelo-rapido", default="claude-haiku-5-5")
+    ap.add_argument("--verificar", action="store_true", help="Simular la doble llave en las aprobaciones.")
     a = ap.parse_args()
-    ids_r, verdad, pa_r, pr_r, tok_r = cargar(a.rapido, a.l2)
-    ids_f, verdad_f, pa_f, pr_f, tok_f = cargar(a.fuerte, a.l2)
+    ids_r, verdad, pa_r, pr_r, tok_r, bloq_r = cargar(a.rapido, a.l2)
+    ids_f, verdad_f, pa_f, pr_f, tok_f, bloq_f = cargar(a.fuerte, a.l2)
     assert ids_r == ids_f, "Las corridas deben tener las mismas capturas con IA"
     n = len(verdad)
 
-    of = optimizar_umbrales_3(pa_f, pr_f, verdad)["optimo"]
-    dec_f = decisiones_3(pa_f, pr_f, of["umbral_aprobar"], of["umbral_p_rechazo"])
+    of = optimizar_umbrales_3(pa_f, pr_f, verdad, bloqueadas=bloq_f)["optimo"]
+    dec_f = decisiones_3(pa_f, pr_f, of["umbral_aprobar"], of["umbral_p_rechazo"], bloq_f)
     filas = []
     for ta in np.linspace(0.80, 1.01, 22):
         for tr in np.linspace(0.50, 1.01, 18):
-            dec_r = decisiones_3(pa_r, pr_r, ta, tr)
+            dec_r = decisiones_3(pa_r, pr_r, ta, tr, bloq_r)
             escala = dec_r == "revision_manual"
-            final = np.where(escala, dec_f, dec_r)
+            if a.verificar:  # doble llave: lo que el rápido aprueba solo queda si el fuerte también aprueba
+                escala = escala | (dec_r == "aprobada")
+                final = np.where(dec_r == "aprobada", np.where(dec_f == "aprobada", "aprobada", dec_f),
+                                 np.where(escala, dec_f, dec_r))
+            else:
+                final = np.where(escala, dec_f, dec_r)
             costo = sum(MATRIZ[v][d] for d, v in zip(final, verdad))
             apr = [v for d, v in zip(final, verdad) if d == "aprobada"]
             if apr and sum(v == "aprobada" for v in apr) / len(apr) < 0.97:
@@ -66,7 +73,7 @@ def main() -> None:
             filas.append((costo, escala.mean(), tok / n, dinero / n * 10_000, ta, tr))
     filas = [f for f in filas if f[1] <= a.max_escala]
     filas.sort(key=lambda r: (r[0], r[2]))
-    print(f"Solo rápido: costo {optimizar_umbrales_3(pa_r, pr_r, verdad)['optimo']['costo']}, "
+    print(f"Solo rápido: costo {optimizar_umbrales_3(pa_r, pr_r, verdad, bloqueadas=bloq_r)['optimo']['costo']}, "
           f"{sum(i + o for i, o in tok_r) / n:.0f} tokens/captura, ${usd(tok_r, 'haiku') / n * 1e4:.2f} por 10k")
     print(f"Solo fuerte: costo {of['costo']}, {sum(i + o for i, o in tok_f) / n:.0f} tokens/captura, "
           f"${usd(tok_f, 'sonnet') / n * 1e4:.2f} por 10k")

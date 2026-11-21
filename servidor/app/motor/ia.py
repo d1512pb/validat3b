@@ -37,15 +37,24 @@ class AnalisisIA(BaseModel):
     marca_en_foto: str | None
     descripcion_en_foto: str | None = Field(description="Descripción del producto tal como se lee en el empaque.")
     contenido_en_foto: str | None = Field(description="Contenido o presentación que se lee, p. ej. '600 ml'.")
+    marca_coincide: Literal["si", "no", "no_se_ve"] = Field(description="La marca de la foto es la del producto esperado.")
+    contenido_coincide: Literal["si", "no", "no_se_ve"] = Field(description="El contenido o tamaño de la foto es el esperado (p. ej. 600 ml).")
     producto_coincide: Literal["si", "no", "dudoso"] = Field(description="Si el producto de la foto es el esperado (marca, descripción y contenido).")
     descripcion_completa: bool = Field(description="Se alcanzan a leer marca, descripción y contenido.")
     etiqueta_visible: bool = Field(description="Hay una etiqueta de precio de anaquel en la foto de etiqueta.")
-    etiqueta_corresponde: Literal["si", "no", "no_se_distingue"] = Field(description="La etiqueta es del producto esperado.")
-    precio: float | None = Field(description="Precio de venta en pesos que muestra la etiqueta.")
+    descripcion_etiqueta: str | None = Field(description="Texto del producto que dice la etiqueta, tal como se lee.")
+    etiqueta_corresponde: Literal["si", "no", "no_se_distingue"] = Field(description="La etiqueta es del producto esperado (su descripción coincide).")
+    varias_etiquetas: bool = Field(description="Hay más de una etiqueta y no queda claro cuál es la del producto.")
+    precio: float | None = Field(description="Precio principal que muestra la etiqueta para una pieza, en pesos, tal como se lee.")
+    precio_regular: float | None = Field(description="Precio normal o 'antes' si la etiqueta muestra dos precios; si solo hay uno, el mismo que precio.")
+    precio_promocion: float | None = Field(description="Precio con descuento u oferta por pieza si lo hay; null si no hay promoción.")
+    precio_tachado: bool = Field(description="Hay un precio tachado o un 'antes / ahora'.")
     precio_unitario_visible: bool = Field(description="La etiqueta muestra el precio unitario (por kg, litro o pieza).")
     precio_unitario: float | None
-    tipo_precio: Literal["regular", "oferta", "volumen", "desconocido"]
+    precio_unitario_unidad: str | None = Field(description="Unidad del precio unitario: kg, g, l, ml o pieza.")
+    tipo_precio: Literal["regular", "oferta", "volumen", "desconocido"] = Field(description="regular; oferta (descuento por pieza); volumen (2x1, 3x$50, 2a al 50%).")
     promocion: str | None = Field(description="Texto de la promoción si la hay, p. ej. '2x$50'.")
+    anomalias: list[str] = Field(description="Otras cosas raras en la evidencia, en frases cortas (etiqueta escrita a mano, producto abierto, precio ilegible...). Lista vacía si no hay.")
     codigo_barras_leido: str | None = Field(description="Dígitos del código de barras si se leen en alguna foto.")
     confianza: float = Field(description="Qué tan seguro estás de tus observaciones, de 0 a 1.")
     motivo: str = Field(description="Una oración en español con el problema principal, o 'sin problemas'.")
@@ -66,7 +75,11 @@ o un producto parecido pero distinto (otra marca, otro tamaño).
 el producto o la etiqueta ocupan poco espacio y el texto pequeño no se alcanza a leer; es borrosa si hay \
 desenfoque o movimiento aunque se adivine el texto. La descripción está incompleta si no se leen marca, \
 nombre y contenido del producto o la descripción de la etiqueta.
-- Precios en pesos mexicanos. Si hay promoción (2x1, 3x$50, por volumen), indícala en tipo_precio y promocion.
+- Lee el precio tú mismo de la etiqueta: no te damos el precio capturado para que tu lectura sea independiente. \
+Si un número no se lee con certeza, deja el campo en null en lugar de adivinar.
+- Precios en pesos mexicanos. Distingue precio regular, precio de oferta y promociones por volumen \
+(2x1, 3x$50, segunda al 50%); repórtalos en sus campos y en tipo_precio y promocion.
+- La etiqueta debe ser la del producto esperado: compara su descripción con la del producto.
 Responde solo con el JSON pedido."""
 
 
@@ -80,9 +93,7 @@ def _contexto(c: CapturaEntrada, fotos: dict[str, Foto]) -> str:
         f"  código de barras del catálogo: {p.codigo_barras or '?'}",
         f"Código de barras capturado por la app: {c.codigo_barras_capturado or '?'}",
     ]
-    if c.precio_capturado is not None:
-        rango = f" (rango de referencia ${p.precio_minimo:g}–${p.precio_maximo:g})" if p.precio_minimo is not None and p.precio_maximo is not None else ""
-        lineas.append(f"Precio que capturó el usuario: ${c.precio_capturado:g}{rango}")
+    # El precio capturado NO se manda: la lectura del modelo debe ser independiente para poder compararla.
     leidos = sorted({cod for f in fotos.values() for cod in f.codigos})
     if leidos:
         lineas.append(f"Códigos leídos localmente en las fotos: {', '.join(leidos)}")
@@ -102,7 +113,7 @@ class ResultadoIA:
     desde_cache: bool = False
 
 
-VERSION_PROMPT = "p2"  # súbelo si cambia SISTEMA o AnalisisIA: invalida la caché
+VERSION_PROMPT = "p3"  # súbelo si cambia SISTEMA o AnalisisIA: invalida la caché
 
 
 @lru_cache
