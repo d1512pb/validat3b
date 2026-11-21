@@ -215,3 +215,18 @@ En la v2, 5 aprobaciones de la v1 pasan a revisión: 3 porque ahora se detectan 
 - **El problema:** con fotos dudosas, el modelo alternaba entre «la fachada no corresponde» y «no se distingue» para la misma foto, y eso cambiaba la decisión.
 - **El arreglo:** ahora solo cuenta como «no corresponde» si el letrero dice otra cadena. En desarrollo y en el set real el modelo nunca contestó «no», así que la calibración y las decisiones no cambian.
 - **En Railway**, la caché de respuestas (`CACHE_IA_DIR`) hace que la misma foto reciba siempre la misma respuesta.
+
+### ¿Más esfuerzo de razonamiento? (prompt v4)
+| Haiku razonando, 10 particiones | Medio (en línea) | Alto | Máximo |
+|---|---:|---:|---:|
+| Costo en las 67 aprobadas o rechazadas | **25.6 ± 0.8** | 27.8 ± 1.9 | sin medir |
+| Costo en las 100, con el supuesto conservador | 65.0 ± 1.3 | 64.2 ± 2.4 | sin medir |
+| Aprobadas bien (de 33) | 13.6 | 17.0 | — |
+| Tokens por captura | **7,858** | 8,866 | ~33,000 (piloto de 3) |
+| Segundos por captura | ~10 | ~13 | ~140 |
+
+- **El alto aprueba más válidas, pero en las capturas aprobadas o rechazadas sale 2.2 puntos peor** (peor en 8 de 10 particiones), porque rechaza menos inválidas. Como en el set ciego solo hay aprobada o rechazada, **nos quedamos con el medio**.
+- **El máximo tarda unos 140 segundos por captura,** más que los 60 que espera la app, y gasta 4 veces más tokens. Queda como opción (`-pensar-max`, con streaming), sin usarse.
+
+### Estabilidad entre corridas
+El servidor en línea y la v2 del lote son el mismo motor y coinciden en 45 de 50. Las 5 diferencias son casos límite. Haiku 5.5 no permite fijar la temperatura, así que esa variación es del modelo; con la misma foto, la caché del servidor da siempre la misma respuesta.

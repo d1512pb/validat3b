@@ -157,7 +157,9 @@ def _esquema() -> dict:
 
 
 SUFIJO_PENSAR = "-pensar"  # p. ej. "claude-haiku-5-5-pensar": el mismo modelo con razonamiento adaptativo
-ESFUERZO_PENSAR = {"-pensar": "medium", "-pensar-alto": "high"}
+ESFUERZO_PENSAR = {"-pensar": "medium", "-pensar-alto": "high", "-pensar-max": "max"}
+# Tope de salida (razonamiento + JSON). En esfuerzo máximo se usa streaming para que no corte el timeout.
+MAX_TOKENS_PENSAR = {"-pensar": 12000, "-pensar-alto": 12000, "-pensar-max": 64000}
 
 
 def _sufijo(modelo: str) -> str | None:
@@ -209,13 +211,14 @@ def analizar(c: CapturaEntrada, fotos: dict[str, Foto], modelo: str) -> Resultad
 
     _limitador().tomar(estimado)
     inicio = time.perf_counter()
-    resp = _cliente().messages.create(
-        model=modelo_api(modelo),
-        max_tokens=12000 if _sufijo(modelo) else 1500,
-        system=SISTEMA,
-        messages=[{"role": "user", "content": contenido}],
-        **_opciones_modelo(modelo),
-    )
+    suf = _sufijo(modelo)
+    peticion = dict(model=modelo_api(modelo), max_tokens=MAX_TOKENS_PENSAR.get(suf, 1500), system=SISTEMA,
+                    messages=[{"role": "user", "content": contenido}], **_opciones_modelo(modelo))
+    if suf == "-pensar-max":
+        with _cliente().messages.stream(**peticion) as flujo:
+            resp = flujo.get_final_message()
+    else:
+        resp = _cliente().messages.create(**peticion)
     latencia = int((time.perf_counter() - inicio) * 1000)
     _limitador().ajustar(estimado, resp.usage.input_tokens + resp.usage.output_tokens)
     if resp.stop_reason == "refusal":
