@@ -230,3 +230,8 @@ En la v2, 5 aprobaciones de la v1 pasan a revisión: 3 porque ahora se detectan 
 
 ### Estabilidad entre corridas
 El servidor en línea y la v2 del lote son el mismo motor y coinciden en 45 de 50. Las 5 diferencias son casos límite. Haiku 5.5 no permite fijar la temperatura, así que esa variación es del modelo; con la misma foto, la caché del servidor da siempre la misma respuesta.
+
+### v3: explicaciones auditables (mismas decisiones)
+- **Qué cambia:** cuando la captura es lejana o borrosa, la explicación ahora dice qué foto tiene el problema, por ejemplo «Foto de la etiqueta lejana: la etiqueta ocupa 30% del ancho de su foto…» o «Foto del producto borrosa (nitidez 0.5 de 1)». La validación que falla es la de esa foto: `producto` o `evidencia_precio`.
+- **Qué no cambia:** la v3 tiene exactamente las mismas decisiones, motivos y precios que la v2. Cambian 18 explicaciones y 10 validaciones.
+- **Es el JSON recomendado para entregar:** `datos/entregas/validat3b_v3.json`.
