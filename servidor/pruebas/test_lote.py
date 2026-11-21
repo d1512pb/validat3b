@@ -187,6 +187,15 @@ def test_lote_reintenta_lo_que_fallo_por_la_ia(tmp_path, monkeypatch):
     assert rep2["procesadas_ahora"] == 1 and rep2["con_fallas_ia"] == 0   # solo reintentó la que falló
 
 
+def test_explicacion_dice_que_foto_tiene_el_problema():
+    from app.motor import decision as dec
+    lejana = analisis(captura_lejana=True, tamano_etiqueta=0.3, tamano_producto=0.6)
+    borrosa = analisis(imagen_borrosa=True, nitidez_producto=0.3, nitidez_etiqueta=0.9)
+    assert dec.fotos_con_problema("CAPTURA_LEJANA", lejana) == ["etiqueta"]
+    assert dec.detalle_foto("CAPTURA_LEJANA", lejana).startswith("Foto de la etiqueta lejana: la etiqueta ocupa 30%")
+    assert dec.detalle_foto("IMAGEN_BORROSA", borrosa) == "Foto del producto borrosa (nitidez 0.3 de 1)."
+
+
 def test_fachada_no_solo_con_evidencia():
     sin_letrero = ia.normalizar_fachada(analisis(fachada_coincide="no", cadena_en_fachada=None), "Soriana")
     otra = ia.normalizar_fachada(analisis(fachada_coincide="no", cadena_en_fachada="OXXO"), "Soriana")

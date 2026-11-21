@@ -151,6 +151,40 @@ def principal(fallas: list[Falla]) -> Falla | None:
     return max(fallas, key=lambda x: (round(x.severidad, 3), -PRIORIDAD_FRENTE[FRENTE[x.codigo]]))
 
 
+def fotos_con_problema(codigo: str, a: AnalisisIA) -> list[str]:
+    """Qué foto (producto o etiqueta) tiene el problema de calidad, con lo que el modelo midió de cada una."""
+    tam_etiqueta = getattr(a, "tamano_etiqueta", None)
+    if codigo == "IMAGEN_BORROSA":
+        malas = [t for t, v in (("producto", a.nitidez_producto), ("etiqueta", a.nitidez_etiqueta)) if v < 0.6]
+        return malas or ["etiqueta" if a.nitidez_etiqueta <= a.nitidez_producto else "producto"]
+    if codigo == "CAPTURA_LEJANA":
+        malas = []
+        if (tam_etiqueta is not None and tam_etiqueta < 0.45) or a.legibilidad_etiqueta < 0.5:
+            malas.append("etiqueta")
+        if a.tamano_producto < 0.35:
+            malas.append("producto")
+        if not malas:
+            malas = ["etiqueta" if tam_etiqueta is None or tam_etiqueta <= a.tamano_producto else "producto"]
+        return malas
+    return []
+
+
+def detalle_foto(codigo: str, a: AnalisisIA) -> str:
+    """Frase que dice en qué foto está el problema, para que la explicación se pueda auditar."""
+    frases = []
+    for t in fotos_con_problema(codigo, a):
+        nombre = "Foto del producto" if t == "producto" else "Foto de la etiqueta"
+        if codigo == "IMAGEN_BORROSA":
+            frases.append(f"{nombre} borrosa (nitidez {getattr(a, 'nitidez_' + t):.1f} de 1).")
+        elif t == "etiqueta":
+            tam = getattr(a, "tamano_etiqueta", None)
+            ocupa = f"la etiqueta ocupa {round(tam * 100)}% del ancho de su foto y " if tam is not None else ""
+            frases.append(f"{nombre} lejana: {ocupa}su descripción no se lee sin zoom.")
+        else:
+            frases.append(f"{nombre} lejana: muestra el anaquel en vez de una unidad de cerca.")
+    return " ".join(frases)
+
+
 def resultado(c: CapturaEntrada, ev: Evaluacion, a: AnalisisIA | None) -> tuple[ResultadoOficial, list[str]]:
     decision = decidir(ev.p_valida, ev.p_rechazo, ev.umbrales)
     bloqueada = decision == Decision.aprobada and bool(ev.compuertas_fallidas)
@@ -172,12 +206,18 @@ def resultado(c: CapturaEntrada, ev: Evaluacion, a: AnalisisIA | None) -> tuple[
         fuertes.add(ev.motivo_aprendido)
     frentes = {FRENTE[cod] for cod in fuertes}
     nombres_cf = {n for n, _ in ev.compuertas_fallidas}
+    # Lejana o borrosa caen en la validación de la foto que tiene el problema (producto o etiqueta).
+    calidad = set(fuertes & {"IMAGEN_BORROSA", "CAPTURA_LEJANA"})
+    if "calidad" in nombres_cf and a is not None:
+        calidad |= {"CAPTURA_LEJANA"} if a.captura_lejana else set()
+        calidad |= {"IMAGEN_BORROSA"} if a.imagen_borrosa or not calidad else set()
+    fotos_mal = {t for cod in calidad for t in (fotos_con_problema(cod, a) if a is not None else ["producto"])}
     validaciones = Validaciones(
         tienda_fachada=Estado.falla if ("FACHADA_INCORRECTA" in fuertes or "fachada" in nombres_cf) else Estado.ok,
-        producto=Estado.falla if ("A" in frentes or fuertes & {"IMAGEN_BORROSA", "CAPTURA_LEJANA", "FOTO_DE_PANTALLA"}
-                                  or nombres_cf & {"producto", "descripcion", "calidad", "sin_trampa"}) else Estado.ok,
+        producto=Estado.falla if ("A" in frentes or "FOTO_DE_PANTALLA" in fuertes or "producto" in fotos_mal
+                                  or nombres_cf & {"producto", "descripcion", "sin_trampa"}) else Estado.ok,
         codigo_barras=Estado.falla if "codigo_barras" in nombres_cf else ev.codigo_barras_estado,
-        evidencia_precio=Estado.falla if ("C" in frentes or nombres_cf & {
+        evidencia_precio=Estado.falla if ("C" in frentes or "etiqueta" in fotos_mal or nombres_cf & {
             "etiqueta", "precio_legible", "precio_coincide", "precio_en_rango", "precio_unitario_coherente"}) else Estado.ok,
     )
     if decision == Decision.aprobada:
@@ -193,8 +233,12 @@ def resultado(c: CapturaEntrada, ev: Evaluacion, a: AnalisisIA | None) -> tuple[
             confianza = 0.9  # el modelo quería aprobar pero una regla lo impide: la revisión es la decisión segura
             reason = top.codigo if top and top.severidad >= 0.5 else None
             explicacion = "No se aprueba: " + " ".join(d for _, d in ev.compuertas_fallidas[:3] if d)
+            if a is not None and calidad:
+                explicacion += " " + " ".join(detalle_foto(cod, a) for cod in sorted(calidad))
         elif top:
             explicacion = top.detalle or REASON_CODES_PROVISIONALES[top.codigo]
+            if a is not None and top.codigo in ("IMAGEN_BORROSA", "CAPTURA_LEJANA"):
+                explicacion = f"{detalle_foto(top.codigo, a)} {explicacion}"
         else:
             explicacion = "La evidencia no alcanza la confianza necesaria para aprobar."
         if decision == Decision.revision_manual:
