@@ -3,7 +3,7 @@
   "info": {
     "title": "Validat3B",
     "description": "Valida capturas de precio en campo: aprobada, rechazada o revision_manual, con motivo y confianza.",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "paths": {
     "/salud": {
@@ -340,7 +340,7 @@
           "version_contrato": {
             "type": "string",
             "title": "Version Contrato",
-            "default": "0.2.0"
+            "default": "0.3.0"
           },
           "capa_decisiva": {
             "type": "string",
@@ -415,6 +415,44 @@
             ],
             "title": "Promocion",
             "description": "Texto de la promoción si la hay, p. ej. '2x$50'."
+          },
+          "precio_regular": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precio Regular",
+            "description": "Precio normal que muestra la etiqueta."
+          },
+          "precio_promocion": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precio Promocion",
+            "description": "Precio con descuento por pieza, si lo hay."
+          },
+          "compuertas_fallidas": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Compuertas Fallidas",
+            "description": "Por qué no se aprobó: cada compuerta que no pasó (p. ej. 'precio_coincide: ...'). Vacía si todo pasó."
+          },
+          "doble_verificacion": {
+            "type": "boolean",
+            "title": "Doble Verificacion",
+            "description": "True si la aprobación se confirmó con el modelo fuerte.",
+            "default": false
           },
           "avisos": {
             "items": {

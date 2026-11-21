@@ -66,8 +66,16 @@ def caracteristicas(c: CapturaEntrada, fotos: dict[str, Foto], p_reglas: float, 
                       "fachada_es_tienda", "producto_visible", "descripcion_completa", "etiqueta_visible",
                       "precio_unitario_visible"):
             x[f"ia_{campo}"] = float(getattr(a, campo))
-        for campo in ("fachada_coincide", "producto_coincide", "etiqueta_corresponde", "tipo_precio"):
-            x[f"ia_{campo}_{getattr(a, campo)}"] = 1.0
+        for campo in ("fachada_coincide", "producto_coincide", "etiqueta_corresponde", "tipo_precio",
+                      "marca_coincide", "contenido_coincide"):
+            v = getattr(a, campo, None)
+            if v is not None:
+                x[f"ia_{campo}_{v}"] = 1.0
+        for campo in ("varias_etiquetas", "precio_tachado"):
+            if getattr(a, campo, None) is not None:
+                x[f"ia_{campo}"] = float(getattr(a, campo))
+        if getattr(a, "anomalias", None) is not None:
+            x["ia_anomalias"] = float(len(a.anomalias))
         x["ia_precio_presente"] = float(a.precio is not None)
         x["ia_confianza"] = a.confianza
         for campo in ("nitidez_producto", "nitidez_etiqueta", "tamano_producto", "legibilidad_etiqueta"):
@@ -146,7 +154,12 @@ def _cargar(ruta: str) -> ModeloFusion | None:
 @lru_cache
 def umbrales(modelo_ia: str | None, etapa: str = "final") -> dict | None:
     """etapa 'final': umbrales para decidir solo con ese modelo. 'cascada': cuándo el rápido ya está seguro."""
-    ruta = carpeta(modelo_ia) / ("umbrales_cascada.json" if etapa == "cascada" else "umbrales.json")
+    if etapa == "cascada":
+        # Los umbrales de cascada dependen de cuál es el segundo modelo (Sonnet o Haiku razonando).
+        propio = carpeta(modelo_ia) / f"umbrales_cascada_{config().modelo_fuerte}.json"
+        ruta = propio if propio.exists() else carpeta(modelo_ia) / "umbrales_cascada.json"
+    else:
+        ruta = carpeta(modelo_ia) / "umbrales.json"
     return json.loads(ruta.read_text(encoding="utf-8")) if ruta.exists() else None
 
 

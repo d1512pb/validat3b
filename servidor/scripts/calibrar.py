@@ -21,6 +21,9 @@ from app.evaluacion import MATRIZ, costo_3, decisiones_3, optimizar_umbrales_3
 from app.motor.fusion import entrenar, guardar_motivos
 
 MODELOS = Path("modelos")
+PREFIJOS_MOTIVO = ("ia_nitidez", "ia_tamano", "ia_legibilidad", "log_nitidez", "ia_descripcion_completa",
+                   "ia_imagen_borrosa", "ia_captura_lejana", "compuerta_calidad", "compuerta_descripcion",
+                   "ia_producto_visible", "ia_etiqueta_visible")
 
 
 def fuera_de_muestra(X, y, pliegues: int, repeticiones: int, l2: float) -> np.ndarray:
@@ -52,6 +55,7 @@ def main() -> None:
     ap.add_argument("--l2", type=float, default=3.0)
     ap.add_argument("--quitar", default="", help="Prefijos de características a excluir, separados por coma.")
     ap.add_argument("--guardar", action="store_true")
+    ap.add_argument("--sin-compuertas", action="store_true", help="Medir sin las compuertas de aprobación.")
     ap.add_argument("--modelo", default=None, help="Modelo de IA de la corrida (por defecto, el de la traza).")
     a = ap.parse_args()
 
@@ -70,10 +74,11 @@ def main() -> None:
     pr = fuera_de_muestra(X, y_rech, a.pliegues, a.repeticiones, a.l2)
     pa_reglas = np.array([f["detalle"]["p_reglas"] for f in filas])
 
-    aprendida = optimizar_umbrales_3(pa, pr, verdad, a.precision, a.margen)
-    reglas = optimizar_umbrales_3(pa_reglas, 1 - pa_reglas, verdad, a.precision, a.margen)
+    bloq = np.array([bool(f["detalle"].get("compuertas_fallidas")) for f in filas]) if not a.sin_compuertas else None
+    aprendida = optimizar_umbrales_3(pa, pr, verdad, a.precision, a.margen, bloqueadas=bloq)
+    reglas = optimizar_umbrales_3(pa_reglas, 1 - pa_reglas, verdad, a.precision, a.margen, bloqueadas=bloq)
     o = aprendida["optimo"]
-    dec = decisiones_3(pa, pr, o["umbral_aprobar"], o["umbral_p_rechazo"])
+    dec = decisiones_3(pa, pr, o["umbral_aprobar"], o["umbral_p_rechazo"], bloq)
     matriz = Counter(zip(verdad, dec))
 
     # Motivo de rechazo: un clasificador por motivo (uno contra el resto) con las capturas rechazadas.
@@ -82,7 +87,8 @@ def main() -> None:
     clases = sorted({m for m in motivos_verdad if motivos_verdad.count(m) >= 3})
     acierto_motivo, modelos_motivo = None, {}
     if len(clases) >= 2:
-        Xr = [X[i] for i in idx_r]
+        # Solo señales de calidad: con pocos rechazos, más variables sobreajustan el motivo.
+        Xr = [{k: v for k, v in X[i].items() if k.startswith(PREFIJOS_MOTIVO)} for i in idx_r]
         oof = {k: fuera_de_muestra(Xr, np.array([m == k for m in motivos_verdad], int), a.pliegues, a.repeticiones, a.l2)
                for k in clases}
         pred = [max(clases, key=lambda k: oof[k][j]) for j in range(len(idx_r))]
@@ -105,6 +111,10 @@ def main() -> None:
         "verdad_vs_decision": {f"{v} -> {d}": n for (v, d), n in sorted(matriz.items())},
         "acierto_motivo_aprendido_fuera_de_muestra": acierto_motivo,
         "acierto_motivo_reglas": reglas_motivo if acierto_motivo is not None else None,
+        "aprobaciones_bloqueadas_por_compuertas": int(sum(1 for i in range(len(filas))
+                                                          if bloq is not None and bloq[i] and pa[i] >= o["umbral_aprobar"])),
+        "compuertas_en_aprobadas_reales": dict(Counter(n for f in filas if f["etiqueta"]["decision"] == "aprobada"
+                                                       for n in f["detalle"].get("compuertas_fallidas", []))),
         "pesos_aprobar": [(n, round(float(w), 2)) for n, w in pesos],
         "pesos_rechazo": [(n, round(float(w), 2)) for n, w in pesos_r],
     }

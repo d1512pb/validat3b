@@ -2,7 +2,8 @@
 import pytest
 
 from app.config import config
-from app.motor import fusion, ia
+from app.motor import fusion, ia, orquestador
+from app.motor.huellas import IndiceHuellas
 
 
 @pytest.fixture(autouse=True)
@@ -19,6 +20,7 @@ def sin_modelos_calibrados(tmp_path, monkeypatch):
     def sin_red(*a, **k):
         raise RuntimeError("Las pruebas no llaman a la API real")
     monkeypatch.setattr(ia, "_cliente", sin_red)
+    monkeypatch.setattr(orquestador, "INDICE_GLOBAL", IndiceHuellas())
     yield
     fusion._cargar.cache_clear()
     fusion.umbrales.cache_clear()

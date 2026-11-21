@@ -25,7 +25,7 @@
           "type": "string"
         },
         "version_contrato": {
-          "default": "0.2.0",
+          "default": "0.3.0",
           "title": "Version Contrato",
           "type": "string"
         },
@@ -105,6 +105,46 @@
           "default": null,
           "description": "Texto de la promoción si la hay, p. ej. '2x$50'.",
           "title": "Promocion"
+        },
+        "precio_regular": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Precio normal que muestra la etiqueta.",
+          "title": "Precio Regular"
+        },
+        "precio_promocion": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Precio con descuento por pieza, si lo hay.",
+          "title": "Precio Promocion"
+        },
+        "compuertas_fallidas": {
+          "description": "Por qué no se aprobó: cada compuerta que no pasó (p. ej. 'precio_coincide: ...'). Vacía si todo pasó.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Compuertas Fallidas",
+          "type": "array"
+        },
+        "doble_verificacion": {
+          "default": false,
+          "description": "True si la aprobación se confirmó con el modelo fuerte.",
+          "title": "Doble Verificacion",
+          "type": "boolean"
         },
         "avisos": {
           "description": "Mensajes cortos para el capturista.",

@@ -48,8 +48,12 @@ def analisis(**cambios) -> AnalisisIA:
         nitidez_producto=0.9, nitidez_etiqueta=0.9, tamano_producto=0.6, legibilidad_etiqueta=0.9,
         fachada_es_tienda=True, cadena_en_fachada="Bodega Aurrerá", fachada_coincide="si", producto_visible=True,
         marca_en_foto="Coca-Cola", descripcion_en_foto="Refresco de cola", contenido_en_foto="600 ml",
+        marca_coincide="si", contenido_coincide="si",
         producto_coincide="si", descripcion_completa=True, etiqueta_visible=True, etiqueta_corresponde="si",
-        precio=18.5, precio_unitario_visible=True, precio_unitario=30.83, tipo_precio="regular", promocion=None,
+        descripcion_etiqueta="Refresco de cola 600 ml", varias_etiquetas=False,
+        precio=18.5, precio_regular=18.5, precio_promocion=None, precio_tachado=False,
+        precio_unitario_visible=True, precio_unitario=30.83, precio_unitario_unidad="l",
+        tipo_precio="regular", promocion=None, anomalias=[],
         codigo_barras_leido=None, confianza=0.98, motivo="sin problemas")
     base.update(cambios)
     return AnalisisIA(**base)
@@ -102,7 +106,9 @@ def test_aprueba_cuando_todo_coincide(ia_falsa):
     j = r.json()
     assert j["decision"] == "aprobada" and j["reason_code"] is None
     assert j["precio_detectado"] == 18.5
-    assert llamadas == [config().modelo_rapido]   # sin escalar: se gastó solo Haiku
+    # Doble llave: la aprobación del rápido se confirma con el fuerte.
+    assert llamadas == [config().modelo_rapido, config().modelo_fuerte]
+    assert j["traza"]["doble_verificacion"] is True and j["traza"]["compuertas_fallidas"] == []
 
 
 def test_rechaza_producto_distinto(ia_falsa):

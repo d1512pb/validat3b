@@ -67,6 +67,15 @@ Los datos van en `validat3b/datos/`, que está en `.gitignore`.
   - distancia del GPS a la tienda más cercana de la cadena seleccionada. Para activarla: `RUTA_TIENDAS=../compartir/tiendas_por_cadena.csv`.
 - **Lo que falta cuando lleguen los datos:** un adaptador del formato oficial en `app/lote.py` (`ADAPTADORES`) y la lista oficial de `reason_code`.
 
+## Modelos y configuraciones
+
+- **Cualquier modelo de Claude:** `MODELO_RAPIDO` y `MODELO_FUERTE` aceptan el nombre del modelo.
+- **Sufijo `-pensar`:** por ejemplo `claude-haiku-5-5-pensar` usa el mismo modelo con razonamiento adaptativo (effort medio). Cuesta más que sin razonar y mucho menos que subir a Sonnet.
+- **Modelos calibrados:** cada modelo tiene su fusión, umbrales y clasificador de motivo en `modelos/<modelo>/`.
+- **Umbrales de la cascada:** dependen del segundo modelo; están en `modelos/<rápido>/umbrales_cascada_<fuerte>.json`.
+
+Comparación y recomendación: [`docs/pruebas/`](../docs/pruebas/README.md).
+
 ## Railway
 
 `railway.json` ya trae el comando de arranque y el chequeo de salud en `/salud`.
