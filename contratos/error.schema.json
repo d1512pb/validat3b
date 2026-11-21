@@ -1,0 +1,42 @@
+{
+  "$defs": {
+    "DetalleError": {
+      "properties": {
+        "codigo": {
+          "examples": [
+            "FOTO_INVALIDA"
+          ],
+          "title": "Codigo",
+          "type": "string"
+        },
+        "mensaje": {
+          "title": "Mensaje",
+          "type": "string"
+        },
+        "detalles": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Detalles",
+          "type": "array"
+        }
+      },
+      "required": [
+        "codigo",
+        "mensaje"
+      ],
+      "title": "DetalleError",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "error": {
+      "$ref": "#/$defs/DetalleError"
+    }
+  },
+  "required": [
+    "error"
+  ],
+  "title": "ErrorRespuesta",
+  "type": "object"
+}

@@ -1,0 +1,9 @@
+{
+  "error": {
+    "codigo": "CAPTURA_INVALIDA",
+    "mensaje": "El campo captura no cumple el contrato.",
+    "detalles": [
+      "producto_esperado: Field required"
+    ]
+  }
+}

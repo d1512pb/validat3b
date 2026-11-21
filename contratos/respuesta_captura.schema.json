@@ -1,0 +1,222 @@
+{
+  "$defs": {
+    "Decision": {
+      "enum": [
+        "aprobada",
+        "rechazada",
+        "revision_manual"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "Estado": {
+      "enum": [
+        "ok",
+        "falla"
+      ],
+      "title": "Estado",
+      "type": "string"
+    },
+    "Traza": {
+      "description": "Datos extra para auditar y para la app. No van al archivo oficial.",
+      "properties": {
+        "version_motor": {
+          "title": "Version Motor",
+          "type": "string"
+        },
+        "version_contrato": {
+          "default": "0.1.0",
+          "title": "Version Contrato",
+          "type": "string"
+        },
+        "capa_decisiva": {
+          "description": "Qué capa tomó la decisión: chequeos locales, modelo rápido (Haiku), fuerte (Sonnet), respaldo por error o simulado.",
+          "enum": [
+            "local",
+            "rapido",
+            "fuerte",
+            "respaldo",
+            "simulado"
+          ],
+          "title": "Capa Decisiva",
+          "type": "string"
+        },
+        "modelos_usados": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Modelos Usados",
+          "type": "array"
+        },
+        "tokens_entrada": {
+          "default": 0,
+          "title": "Tokens Entrada",
+          "type": "integer"
+        },
+        "tokens_salida": {
+          "default": 0,
+          "title": "Tokens Salida",
+          "type": "integer"
+        },
+        "latencia_ms": {
+          "default": 0,
+          "title": "Latencia Ms",
+          "type": "integer"
+        },
+        "tipo_precio": {
+          "anyOf": [
+            {
+              "enum": [
+                "regular",
+                "oferta",
+                "volumen",
+                "desconocido"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tipo Precio"
+        },
+        "precio_unitario_detectado": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Precio Unitario Detectado"
+        },
+        "promocion": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Texto de la promoción si la hay, p. ej. '2x$50'.",
+          "title": "Promocion"
+        },
+        "avisos": {
+          "description": "Mensajes cortos para el capturista.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Avisos",
+          "type": "array"
+        }
+      },
+      "required": [
+        "version_motor",
+        "capa_decisiva"
+      ],
+      "title": "Traza",
+      "type": "object"
+    },
+    "Validaciones": {
+      "properties": {
+        "tienda_fachada": {
+          "$ref": "#/$defs/Estado"
+        },
+        "producto": {
+          "$ref": "#/$defs/Estado"
+        },
+        "codigo_barras": {
+          "$ref": "#/$defs/Estado"
+        },
+        "evidencia_precio": {
+          "$ref": "#/$defs/Estado"
+        }
+      },
+      "required": [
+        "tienda_fachada",
+        "producto",
+        "codigo_barras",
+        "evidencia_precio"
+      ],
+      "title": "Validaciones",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "capture_id": {
+      "title": "Capture Id",
+      "type": "string"
+    },
+    "decision": {
+      "$ref": "#/$defs/Decision"
+    },
+    "confidence_score": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Confidence Score",
+      "type": "number"
+    },
+    "reason_code": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "null cuando la captura se aprueba.",
+      "title": "Reason Code"
+    },
+    "validaciones": {
+      "$ref": "#/$defs/Validaciones"
+    },
+    "precio_detectado": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Precio Detectado"
+    },
+    "codigo_barras_detectado": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Codigo Barras Detectado"
+    },
+    "explicacion": {
+      "title": "Explicacion",
+      "type": "string"
+    },
+    "traza": {
+      "$ref": "#/$defs/Traza"
+    }
+  },
+  "required": [
+    "capture_id",
+    "decision",
+    "confidence_score",
+    "validaciones",
+    "explicacion",
+    "traza"
+  ],
+  "title": "RespuestaCaptura",
+  "type": "object"
+}

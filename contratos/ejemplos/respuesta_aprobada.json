@@ -1,0 +1,28 @@
+{
+  "capture_id": "CAP-000123-APR",
+  "decision": "aprobada",
+  "confidence_score": 0.9,
+  "reason_code": null,
+  "validaciones": {
+    "tienda_fachada": "ok",
+    "producto": "ok",
+    "codigo_barras": "ok",
+    "evidencia_precio": "ok"
+  },
+  "precio_detectado": 42.5,
+  "codigo_barras_detectado": "7501055363056",
+  "explicacion": "Captura consistente.",
+  "traza": {
+    "version_motor": "0.1.0",
+    "version_contrato": "0.1.0",
+    "capa_decisiva": "simulado",
+    "modelos_usados": [],
+    "tokens_entrada": 0,
+    "tokens_salida": 0,
+    "latencia_ms": 0,
+    "tipo_precio": "regular",
+    "precio_unitario_detectado": 7.08,
+    "promocion": null,
+    "avisos": []
+  }
+}

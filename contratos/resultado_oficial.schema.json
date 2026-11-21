@@ -1,0 +1,114 @@
+{
+  "$defs": {
+    "Decision": {
+      "enum": [
+        "aprobada",
+        "rechazada",
+        "revision_manual"
+      ],
+      "title": "Decision",
+      "type": "string"
+    },
+    "Estado": {
+      "enum": [
+        "ok",
+        "falla"
+      ],
+      "title": "Estado",
+      "type": "string"
+    },
+    "Validaciones": {
+      "properties": {
+        "tienda_fachada": {
+          "$ref": "#/$defs/Estado"
+        },
+        "producto": {
+          "$ref": "#/$defs/Estado"
+        },
+        "codigo_barras": {
+          "$ref": "#/$defs/Estado"
+        },
+        "evidencia_precio": {
+          "$ref": "#/$defs/Estado"
+        }
+      },
+      "required": [
+        "tienda_fachada",
+        "producto",
+        "codigo_barras",
+        "evidencia_precio"
+      ],
+      "title": "Validaciones",
+      "type": "object"
+    }
+  },
+  "description": "Formato oficial del reto, campo por campo. Es lo que va al archivo del set ciego.",
+  "properties": {
+    "capture_id": {
+      "title": "Capture Id",
+      "type": "string"
+    },
+    "decision": {
+      "$ref": "#/$defs/Decision"
+    },
+    "confidence_score": {
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Confidence Score",
+      "type": "number"
+    },
+    "reason_code": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "null cuando la captura se aprueba.",
+      "title": "Reason Code"
+    },
+    "validaciones": {
+      "$ref": "#/$defs/Validaciones"
+    },
+    "precio_detectado": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Precio Detectado"
+    },
+    "codigo_barras_detectado": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Codigo Barras Detectado"
+    },
+    "explicacion": {
+      "title": "Explicacion",
+      "type": "string"
+    }
+  },
+  "required": [
+    "capture_id",
+    "decision",
+    "confidence_score",
+    "validaciones",
+    "explicacion"
+  ],
+  "title": "ResultadoOficial",
+  "type": "object"
+}

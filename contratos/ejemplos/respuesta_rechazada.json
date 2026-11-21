@@ -1,0 +1,30 @@
+{
+  "capture_id": "CAP-000123-REC",
+  "decision": "rechazada",
+  "confidence_score": 0.9,
+  "reason_code": "PRODUCTO_NO_COINCIDE",
+  "validaciones": {
+    "tienda_fachada": "ok",
+    "producto": "falla",
+    "codigo_barras": "ok",
+    "evidencia_precio": "ok"
+  },
+  "precio_detectado": 42.5,
+  "codigo_barras_detectado": "7501055363056",
+  "explicacion": "Revisa que sea el producto o contratipo esperado.",
+  "traza": {
+    "version_motor": "0.1.0",
+    "version_contrato": "0.1.0",
+    "capa_decisiva": "simulado",
+    "modelos_usados": [],
+    "tokens_entrada": 0,
+    "tokens_salida": 0,
+    "latencia_ms": 0,
+    "tipo_precio": "regular",
+    "precio_unitario_detectado": 7.08,
+    "promocion": null,
+    "avisos": [
+      "Revisa que sea el producto o contratipo esperado."
+    ]
+  }
+}

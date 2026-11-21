@@ -1,0 +1,42 @@
+{
+  "version_contrato": "0.1.0",
+  "capture_id": "CAP-000123",
+  "codigo_barras_capturado": "7501055363056",
+  "producto_esperado": {
+    "sku": "3B-000451",
+    "descripcion": "Refresco de cola",
+    "marca": "Coca-Cola",
+    "contenido": "600 ml",
+    "codigo_barras": "7501055363056",
+    "es_contratipo": false
+  },
+  "cadena": "Bodega Aurrerá",
+  "tienda": "Bodega Aurrerá Iztapalapa Centro",
+  "tienda_id": "BA-0187",
+  "fecha_hora_captura": "2026-11-21T10:42:05-06:00",
+  "metadatos_app": {
+    "dispositivo": "Samsung Galaxy A15",
+    "sistema_operativo": "Android 15",
+    "version_app": "1.0.0",
+    "capturista_id": "CAPT-017",
+    "ubicacion": {
+      "latitud": 19.3574,
+      "longitud": -99.0927,
+      "precision_m": 12.0
+    }
+  },
+  "chequeos_locales": [
+    {
+      "nombre": "nitidez",
+      "foto": "producto",
+      "resultado": "ok",
+      "puntaje": 0.91
+    },
+    {
+      "nombre": "codigo_barras",
+      "foto": "producto",
+      "resultado": "ok",
+      "valor": "7501055363056"
+    }
+  ]
+}
