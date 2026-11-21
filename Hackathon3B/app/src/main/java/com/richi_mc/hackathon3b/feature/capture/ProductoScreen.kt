@@ -335,7 +335,7 @@ private fun TextoEncontrado(
     }
 }
 
-/** "Precio detectado: $24.90 · Regular · Con precio unitario" o "No se encontró precio". */
+/** "Precio detectado: $24.90 · Unitario · Con precio por kg/L" o "No se encontró precio". */
 @Composable
 private fun PrecioDetectadoLinea(precio: PrecioDetectado?) {
     val valor = formatoPrecio(precio?.valor)
@@ -350,7 +350,7 @@ private fun PrecioDetectadoLinea(precio: PrecioDetectado?) {
             Text("No se encontró precio", style = Glass.type.secondary, color = GlassRojo.danger)
         }
     } else {
-        val unitario = if (precio.tienePrecioUnitario) "Con precio unitario" else "Sin precio unitario"
+        val unitario = if (precio.tienePrecioUnitario) "Con precio por kg/L" else "Sin precio por kg/L"
         Text(
             "Precio detectado: $valor · ${tipoPrecioTexto(precio.tipo)} · $unitario",
             style = Glass.type.bodyStrong, color = GlassRojo.ink,

@@ -468,7 +468,7 @@ private fun DatosCard(b: BorradorCaptura, onVerTexto: () -> Unit) {
                 if (precio?.valor == null) StatusChip("Sin precio", GlassRojo.danger, icon = Icons.Rounded.ErrorOutline)
             }
             Dato("Tipo de precio", precio?.let { tipoPrecioTexto(it.tipo) } ?: "No identificado")
-            Dato("Precio unitario", precio?.precioUnitario?.let { formatoPrecio(it) } ?: if (precio?.tienePrecioUnitario == true) "Visible" else "No visible") {
+            Dato("Precio por kg/L", precio?.precioUnitario?.let { formatoPrecio(it) } ?: if (precio?.tienePrecioUnitario == true) "Visible" else "No visible") {
                 if (precio?.tienePrecioUnitario == true) {
                     StatusChip("Sí", GlassRojo.success, icon = Icons.Rounded.CheckCircle)
                 } else {

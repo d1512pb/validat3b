@@ -47,6 +47,11 @@ class ScoringPriceParser : PriceParser {
             valor != null -> TipoPrecio.REGULAR
             else -> TipoPrecio.DESCONOCIDO
         }
+        // Promocional: el valor ya se decidió con la confianza sin penalizar; aquí solo se baja la
+        // confianza reportada para que la UI pida revisar el precio.
+        if (tipo == TipoPrecio.VOLUMEN && ganador != null) {
+            confianza = (confianza + PesosPrecio.PROMOCIONAL).coerceIn(0f, 1f)
+        }
 
         return PrecioDetectado(
             valor = valor,
