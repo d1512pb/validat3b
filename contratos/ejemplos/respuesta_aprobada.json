@@ -14,7 +14,7 @@
   "explicacion": "Captura consistente.",
   "traza": {
     "version_motor": "0.1.0",
-    "version_contrato": "0.1.0",
+    "version_contrato": "0.2.0",
     "capa_decisiva": "simulado",
     "modelos_usados": [],
     "tokens_entrada": 0,

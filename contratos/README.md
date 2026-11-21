@@ -1,4 +1,4 @@
-# Contrato móvil ↔ servidor (v0.1.0)
+# Contrato móvil ↔ servidor (v0.2.0)
 
 Qué manda la app, qué regresa el servidor y qué errores puede haber. Los archivos `.schema.json` y `openapi.json` se generan desde `servidor/app/contrato.py`: no se editan a mano.
 
@@ -25,10 +25,12 @@ Qué manda la app, qué regresa el servidor y qué errores puede haber. Los arch
 | Campo | Obligatorio | Nota |
 |---|---|---|
 | `capture_id` | sí | Único por captura, p. ej. `CAP-000123` |
-| `producto_esperado` | sí | `sku`, `descripcion`, `marca`, `contenido`, `codigo_barras`, `es_contratipo`; todos opcionales salvo el objeto |
+| `producto_esperado` | sí | `sku`, `descripcion`, `marca`, `contenido`, `codigo_barras`, `es_contratipo`, `precio_referencia`, `precio_minimo`, `precio_maximo`, `unidad`, `cantidad`, `categoria`, `linea`; todos opcionales salvo el objeto. Son los campos del catálogo de 3B (`product_*`) |
 | `cadena`, `tienda` | sí | Lo que seleccionó el capturista; `tienda_id` es opcional |
 | `fecha_hora_captura` | sí | ISO 8601 con zona: `2026-11-21T10:42:05-06:00` |
 | `codigo_barras_capturado` | no | El código que leyó la app |
+| `precio_capturado` | no | El precio que tecleó el capturista (`capture_price`). Se compara contra la etiqueta |
+| `marca_capturada` | no | La marca que capturó (`capture_brand`) |
 | `metadatos_app` | no | `dispositivo`, `sistema_operativo`, `version_app`, `capturista_id`, `ubicacion` (`latitud`, `longitud`, `precision_m`). Acepta campos extra |
 | `chequeos_locales` | no | Lo que ya validó el teléfono (ver abajo) |
 
@@ -132,6 +134,10 @@ const resultado = await r.json();   // RespuestaCaptura o { error }
 
 - **Documentación interactiva:** `$SERVIDOR/docs`.
 - **Estado del servidor:** `GET $SERVIDOR/salud`.
+
+## Cambios
+
+- **0.2.0** (aditivo): `precio_capturado`, `marca_capturada` y los campos del catálogo dentro de `producto_esperado`, con los mismos datos que trae el set oficial de 3B. Lo que ya mandaban sigue funcionando.
 
 ## Versionado
 

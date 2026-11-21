@@ -1,0 +1,6 @@
+{
+ "umbral_aprobar": 0.9071421939819754,
+ "umbral_p_rechazo": 0.42,
+ "corrida": "..\\datos\\corridas\\dev_sonnet_768",
+ "costo_estimado_por_captura": 0.64
+}

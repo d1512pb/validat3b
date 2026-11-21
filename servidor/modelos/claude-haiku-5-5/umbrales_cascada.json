@@ -1,0 +1,7 @@
+{
+ "umbral_aprobar": 0.92,
+ "umbral_p_rechazo": 0.56,
+ "costo_estimado": 69,
+ "fraccion_escala": 0.68,
+ "tokens_por_captura": 8913
+}
