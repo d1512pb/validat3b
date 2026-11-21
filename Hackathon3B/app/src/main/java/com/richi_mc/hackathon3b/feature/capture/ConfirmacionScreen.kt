@@ -221,9 +221,9 @@ private fun nombreFoto(t: TipoFoto) = when (t) {
 }
 
 private fun tipoPrecioLegible(t: String) = when (t.lowercase()) {
-    "regular" -> "Precio regular"
+    "regular" -> "Precio unitario"
     "oferta" -> "Precio de oferta"
-    "volumen" -> "Precio por volumen"
+    "volumen" -> "Precio promocional"
     else -> null
 }
 

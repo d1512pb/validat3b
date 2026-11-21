@@ -55,9 +55,9 @@ internal fun formatoPrecio(valor: Double?): String? =
 internal fun mismoCodigo(a: String, b: String) = a.trim().trimStart('0') == b.trim().trimStart('0')
 
 internal fun tipoPrecioTexto(t: TipoPrecio) = when (t) {
-    TipoPrecio.REGULAR -> "Regular"
+    TipoPrecio.REGULAR -> "Unitario"
     TipoPrecio.OFERTA -> "Oferta"
-    TipoPrecio.VOLUMEN -> "Volumen"
+    TipoPrecio.VOLUMEN -> "Promocional"
     TipoPrecio.DESCONOCIDO -> "No identificado"
 }
 

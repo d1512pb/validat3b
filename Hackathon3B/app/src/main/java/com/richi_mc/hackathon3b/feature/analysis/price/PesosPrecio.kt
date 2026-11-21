@@ -30,6 +30,12 @@ object PesosPrecio {
     var ANTERIOR = -0.30f
     var PEGADOS_SIN_EVIDENCIA = -0.10f
     var ENTERO_SIN_EVIDENCIA = -0.15f
+    /**
+     * Etiqueta promocional (2 x $50, 3x2, lleva-paga...): el precio leído no es el de una pieza, así
+     * que se baja la confianza para que el capturista lo revise. Se aplica después de decidir si el
+     * valor se conserva (no lo descarta por bajar de `Umbrales.confianzaPrecioMin`).
+     */
+    var PROMOCIONAL = -0.25f
 
     // ---- Elección ----
     /** Dos candidatos del mismo valor se fusionan y el ganador suma esto. */

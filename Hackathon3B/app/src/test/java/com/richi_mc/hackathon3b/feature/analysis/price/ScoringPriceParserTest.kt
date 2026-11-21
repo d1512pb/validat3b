@@ -5,6 +5,7 @@ import com.richi_mc.hackathon3b.core.model.FormaPrecio
 import com.richi_mc.hackathon3b.core.model.LineaOcr
 import com.richi_mc.hackathon3b.core.model.PrecioDetectado
 import com.richi_mc.hackathon3b.core.model.TipoPrecio
+import com.richi_mc.hackathon3b.core.model.Umbrales
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -137,6 +138,52 @@ class ScoringPriceParserTest {
         val p = parser.parse(listOf(lin(el("3", 50, 100, 30, 60), el("X", 90, 100, 30, 60), el("\$50", 130, 100, 150, 60))))
         assertEquals(TipoPrecio.VOLUMEN, p.tipo)
         assertEquals(50.0, p.valor!!, 1e-9)
+    }
+
+    // ---- Promocional: baja la confianza, no el valor ----
+
+    private fun etiquetaPromocional() =
+        listOf(lin(el("3", 50, 100, 30, 60), el("X", 90, 100, 30, 60), el("\$50", 130, 100, 150, 60)))
+
+    private fun etiquetaSinPromocion() = listOf(lin(el("\$50", 130, 100, 150, 60)))
+
+    @Test fun promocionalBajaLaConfianzaPeroNoElValor() {
+        val promo = parser.parse(etiquetaPromocional())
+        val sin = parser.parse(etiquetaSinPromocion())
+        assertEquals(TipoPrecio.VOLUMEN, promo.tipo)
+        assertEquals(50.0, promo.valor!!, 1e-9)
+        assertEquals(sin.confianza!! + PesosPrecio.PROMOCIONAL, promo.confianza!!, 1e-4f)
+        assertEquals(sin.confianza!! - 0.25f, promo.confianza!!, 1e-4f)
+    }
+
+    @Test fun precioRegularNoSePenaliza() {
+        val p = caso("\$24.90")
+        assertEquals(TipoPrecio.REGULAR, p.tipo)
+        val solo = parser.parse(listOf(lin(el("\$24.90", 100, 100, 300, 80))))
+        assertEquals(solo.confianza!!, p.confianza!!, 1e-4f)
+        assertTrue(p.confianza!! >= 0.60f)
+    }
+
+    @Test fun promocionalDeConfianzaBajaConservaElValor() {
+        // Precio de baja altura frente a otra línea más alta: confianza sin penalizar media/baja.
+        val promoLineas = listOf(
+            lin(el("3", 50, 100, 30, 40), el("X", 90, 100, 30, 40), el("\$50", 130, 100, 100, 45)),
+            lin(el("OTRO TEXTO", 50, 300, 400, 80)),
+        )
+        val sin = parser.parse(
+            listOf(
+                lin(el("\$50", 130, 100, 100, 45)),
+                lin(el("OTRO TEXTO", 50, 300, 400, 80)),
+            )
+        )
+        val p = parser.parse(promoLineas)
+        assertEquals(TipoPrecio.VOLUMEN, p.tipo)
+        println("sin=${sin.confianza} promo=${p.confianza} valor=${p.valor}")
+        assertTrue("sin=${sin.confianza}", sin.confianza!! in 0.30f..0.55f)
+        // La penalizada cae bajo el piso, pero el valor se decidió antes de penalizar.
+        assertTrue("confianza=${p.confianza}", p.confianza!! < Umbrales.confianzaPrecioMin)
+        assertEquals(50.0, p.valor!!, 1e-9)
+        assertTrue(p.requiereRevision)
     }
 
     // ---- Re-OCR ----
