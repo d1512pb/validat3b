@@ -1,0 +1,6 @@
+{
+ "umbral_aprobar": 0.9299999999999999,
+ "umbral_p_rechazo": 0.42,
+ "corrida": "..\\datos\\corridas\\dev_haikupensaralto_p3",
+ "costo_estimado_por_captura": 0.68
+}

@@ -3,6 +3,7 @@
 21 de noviembre de 2026. Todas las pruebas usan las **100 capturas etiquetadas de desarrollo** del reto: 33 aprobadas, 34 rechazadas y 33 a revisión manual. Las imágenes y los metadatos de 3B **no** están en el repositorio (`datos/` va en `.gitignore`). Aquí solo quedan resultados agregados.
 
 - [`peor-caso.md`](peor-caso.md): **tabla simple para el pitch**, con el costo por imagen en el peor caso (todas las capturas pasan por el modelo) y la precisión de cada modelo.
+- [`robustez.md`](robustez.md) y [`robustez-fusion.md`](robustez-fusion.md): la elección de la segunda capa, medida con 10 particiones distintas.
 - [`comparacion.md`](comparacion.md): la comparación final entre configuraciones (generada con `scripts/comparar.py`).
 - [`reportes/`](reportes/): el `reporte.json` de cada corrida (tokens, tiempo y evaluación agregada).
 
@@ -69,14 +70,40 @@ Medidas dentro de muestra con el motor real, las tres configuraciones finales da
 
 **Lo que puede aportar móvil:** si la app manda niveles de confianza de las imágenes en `chequeos_locales.puntaje` (nitidez, distancia, iluminación), entran como señales a la fusión. Con eso habría menos capturas válidas en revisión, sin aflojar las compuertas.
 
+## Elección de la segunda capa (10 particiones)
+
+**Decisión del equipo: Haiku → Haiku razonando (esfuerzo medio) con doble llave.** Es lo que corre en Railway desde el 21-nov-2026.
+
+Con 100 capturas, una sola validación cruzada mueve el costo ±5 puntos. Para separar lo real del ruido, cada configuración se midió con **10 particiones distintas** y se compararon por pares, con la misma partición para todas ([`robustez.md`](robustez.md) y [`robustez-fusion.md`](robustez-fusion.md)).
+
+| Configuración | Costo operativo (media ± desv.) | FP | FN | Acierto general | Tokens/captura | vs. Haiku razonando solo |
+|---|---:|---:|---:|---:|---:|---|
+| Haiku solo | 81.7 ± 1.9 | 0 | 0 | 53% | 6,631 | +11.4; peor en 10 de 10 |
+| Haiku razonando (medio) solo | 70.3 ± 5.0 | 0 | 0 | 66% | 7,429 | — |
+| **Cascada Haiku → Haiku razonando (medio)** | **68.3 ± 5.0** | **0** | **0** | **68%** | 12,304 | **−2.0; mejor en 10 de 10** |
+| Haiku razonando (alto) solo | 68.9 ± 3.5 | 0 | 0.3 | 69% | 8,319 | −1.4; mejor en 7 de 10 |
+| Cascada Haiku → Haiku razonando (alto) | 68.1 ± 3.5 | 0 | 0.3 | 70% | 13,050 | −2.2; mejor en 8 de 10 |
+| Cascada Haiku → fusión de las dos lecturas | 76.1 ± 6.0 | 0 | 0.1 | 60% | 12,359 | +5.8; peor en 9 de 10 |
+
+**Lectura:**
+- **La cascada le gana a Haiku razonando solo en las 10 particiones,** pero por poco: 2 puntos por cada 100 capturas, con 66% más tokens.
+  - Vale la pena si cada revisión humana cuesta más que los tokens extra.
+  - Con ~1 peso por imagen revisada (dato de finanzas de 3B), 2 revisiones menos por cada 100 capturas ahorran ~2–6 pesos. Los tokens extra cuestan ~$0.09 de dólar, unos 1.6 pesos a ~18 pesos por dólar.
+- **Esfuerzo alto no mejora de forma clara:** da el mismo costo con más tokens, y en algunas particiones rechaza una captura válida (FN 0.3 en promedio). No se adopta.
+- **Fusión de las dos lecturas** (que la decisión final vea a Haiku y a Haiku razonando juntos): empeora. Con 100 capturas, el doble de señales sobreajusta. No se adopta.
+- **Opus no se probó.** El costo humano por revisión lo haría pagable, pero Haiku razonando ya iguala a Sonnet. Queda como opción si el set ciego trae casos difíciles.
+
+**Finanzas:** a ~1 peso por imagen revisada, cada captura que se resuelve sin humano ahorra unos 3 pesos (3 imágenes). La cascada cuesta ~$0.0019 de dólar por captura, unos 0.03 pesos. En 10,000 capturas resuelve sola ~3,600: ahorra del orden de 10,000 pesos de revisión, contra unos 340 pesos de IA.
+
 ## Cómo cambiar la configuración del servidor
 
 Todo se hace con variables de entorno (Railway → Variables). Los modelos calibrados de cada opción ya están en `servidor/modelos/`.
 
 | Configuración | `MODELO_RAPIDO` | `MODELO_FUERTE` | `ESCALAR_A_FUERTE` | `VERIFICAR_APROBACIONES` |
 |---|---|---|---|---|
-| Cascada Haiku → Sonnet (hoy) | `claude-haiku-5-5` | `claude-sonnet-5-5` | `true` | `true` |
-| Cascada Haiku → Haiku razonando | `claude-haiku-5-5` | `claude-haiku-5-5-pensar` | `true` | `true` |
+| **Cascada Haiku → Haiku razonando (desplegada)** | `claude-haiku-5-5` | `claude-haiku-5-5-pensar` | `true` | `true` |
+| Cascada Haiku → Haiku razonando con esfuerzo alto | `claude-haiku-5-5` | `claude-haiku-5-5-pensar-alto` | `true` | `true` |
+| Cascada Haiku → Sonnet | `claude-haiku-5-5` | `claude-sonnet-5-5` | `true` | `true` |
 | Solo Haiku razonando | `claude-haiku-5-5-pensar` | (no se usa) | `false` | `false` |
 | Solo Haiku sin razonar | `claude-haiku-5-5` | (no se usa) | `false` | `false` |
 
@@ -120,6 +147,7 @@ done
 | dev_haiku_p3 | p3 | 384/768/768 | api | 610,068 | 52,985 | 6,630 | 89 | $0.09 | 76 | 0 |
 | dev_sonnet_p3 | p3 | 384/768/768 | api | 610,168 | 56,573 | 6,667 | 110 | $1.79 | 66 | 0 |
 | dev_haikupensar_p3 | p3 | 384/768/768 | api | 610,168 | 132,748 | 7,429 | 123 | $0.13 | 102 (sin calibrar) | 0 |
+| dev_haikupensaralto_p3 | p3 | 384/768/768 | api | 610,168 | 221,776 | 8,319 | 199 | $0.17 | (sin calibrar) | 0 |
 | dev_haiku_p3b | p3 | 384/768/768 | caché | — | — | 6,630 | 28 | $0 | 94 | 0 |
 | dev_sonnet_p3b | p3 | 384/768/768 | caché | — | — | 6,667 | 28 | $0 | 97 | 0 |
 | dev_cascada_768 | p2 | 384/768/768 | caché | — | — | 8,592 | 32 | $0 | 53 | 0 |
@@ -128,7 +156,7 @@ done
 | dev_final_cascada_haikupensar | p3 | 384/768/768 | caché | — | — | 11,817 | 31 | $0 | 52 | 0 |
 | dev_final_solo_haikupensar | p3 | 384/768/768 | caché | — | — | 7,429 | 28 | $0 | 52 | 0 |
 
-**Gasto total de la llave en pruebas: $6.33** en 9 corridas que llamaron al modelo: 874 capturas, 2,622 imágenes. A eso se suman ~$0.02 de 3 pruebas reales en Railway.
+**Gasto total de la llave en pruebas: $6.50** en 10 corridas que llamaron al modelo: 974 capturas, 2,922 imágenes. A eso se suman ~$0.02 de 3 pruebas reales en Railway.
 
 ## Qué aprendimos en cada versión
 
@@ -140,3 +168,4 @@ done
 | motivo aprendido | Clasificador de `reason_code` con los motivos del analista | 41–56% (reglas) → 59–68% de acierto fuera de muestra |
 | p3 | La IA lee precio regular, oferta, volumen, tachado y unitario sin conocer el capturado; 16 compuertas; doble llave | 0 FP en todas las configuraciones. El esquema más grande suma ~1,300 tokens por llamada |
 | Haiku razonando | Haiku 5.5 con razonamiento adaptativo como segundo modelo | Misma calidad que Sonnet por 8 a 14 veces menos |
+| Segunda capa | 10 particiones: esfuerzo medio contra alto, y fusión de las dos lecturas | La cascada con esfuerzo medio es la más consistente; alto y fusión no mejoran |

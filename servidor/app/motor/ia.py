@@ -153,11 +153,17 @@ def _esquema() -> dict:
 
 
 SUFIJO_PENSAR = "-pensar"  # p. ej. "claude-haiku-5-5-pensar": el mismo modelo con razonamiento adaptativo
+ESFUERZO_PENSAR = {"-pensar": "medium", "-pensar-alto": "high"}
+
+
+def _sufijo(modelo: str) -> str | None:
+    return next((s for s in sorted(ESFUERZO_PENSAR, key=len, reverse=True) if modelo.endswith(s)), None)
 
 
 def modelo_api(modelo: str) -> str:
     """Id real del modelo para la API (sin el sufijo de configuración)."""
-    return modelo[: -len(SUFIJO_PENSAR)] if modelo.endswith(SUFIJO_PENSAR) else modelo
+    s = _sufijo(modelo)
+    return modelo[: -len(s)] if s else modelo
 
 
 def _opciones_modelo(modelo: str) -> dict:
@@ -165,8 +171,8 @@ def _opciones_modelo(modelo: str) -> dict:
     Sonnet 5.5 no (400), así que ahí solo se baja el effort. Con el sufijo -pensar, el modelo razona
     (thinking adaptativo, effort medio): más caro que sin razonar, mucho más barato que subir de modelo."""
     salida = {"format": {"type": "json_schema", "schema": _esquema()}, "effort": "low"}
-    if modelo.endswith(SUFIJO_PENSAR):
-        return {"output_config": {**salida, "effort": "medium"}, "thinking": {"type": "adaptive"}}
+    if (suf := _sufijo(modelo)):
+        return {"output_config": {**salida, "effort": ESFUERZO_PENSAR[suf]}, "thinking": {"type": "adaptive"}}
     if "haiku" in modelo:
         return {"output_config": salida, "thinking": {"type": "disabled"}}
     return {"output_config": salida}
@@ -201,7 +207,7 @@ def analizar(c: CapturaEntrada, fotos: dict[str, Foto], modelo: str) -> Resultad
     inicio = time.perf_counter()
     resp = _cliente().messages.create(
         model=modelo_api(modelo),
-        max_tokens=8000 if modelo.endswith(SUFIJO_PENSAR) else 1500,
+        max_tokens=12000 if _sufijo(modelo) else 1500,
         system=SISTEMA,
         messages=[{"role": "user", "content": contenido}],
         **_opciones_modelo(modelo),
