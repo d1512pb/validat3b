@@ -91,6 +91,14 @@ def test_cada_compuerta_impide_aprobar(ia_por_modelo, cambio, compuerta):
     assert j["decision"] != "aprobada", (cambio, j)
 
 
+def test_codigo_o_precio_no_leidos_por_el_telefono_no_bloquean(ia_por_modelo):
+    c = {**CAPTURA, "chequeos_locales": [
+        {"nombre": "codigo_barras", "foto": "producto", "resultado": "falla"},
+        {"nombre": "precio_leido", "foto": "etiqueta", "resultado": "falla", "valor": "$99.00"}]}
+    j = enviar(c).json()
+    assert not {"chequeos_movil", "precio_coincide"} & set(j["traza"]["compuertas_fallidas"]), j["traza"]
+
+
 def test_falla_reportada_por_el_telefono_impide_aprobar(ia_por_modelo):
     c = {**CAPTURA, "chequeos_locales": [{"nombre": "nitidez", "foto": "producto", "resultado": "falla", "puntaje": 0.2}]}
     _no_aprobada(enviar(c).json(), "chequeos_movil")
