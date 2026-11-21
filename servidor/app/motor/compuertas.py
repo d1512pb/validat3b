@@ -12,10 +12,11 @@ from app.contrato import CapturaEntrada
 from app.motor.ia import AnalisisIA
 from app.motor.imagenes import Foto
 
-# Chequeos del teléfono que, si reportan falla, impiden aprobar (el código de la etiqueta de anaquel
-# no cuenta: suele ser un código interno de la tienda).
-CHEQUEOS_MOVILES_CRITICOS = {"nitidez", "distancia", "codigo_foto_coincide", "etiqueta_presente", "precio_leido",
-                             "codigo_barras", "pantalla"}
+# Chequeos del teléfono que, si reportan falla, impiden aprobar. No bloquean «codigo_barras» ni «precio_leido»:
+# el teléfono los marca en falla cuando simplemente no alcanzó a leer (el frente del producto casi nunca muestra
+# el código, y el código es opcional). Un código distinto sí bloquea: lo detecta el servidor en la foto y
+# «codigo_foto_coincide». El código de la etiqueta de anaquel no cuenta: suele ser interno de la tienda.
+CHEQUEOS_MOVILES_CRITICOS = {"nitidez", "distancia", "codigo_foto_coincide", "etiqueta_presente", "pantalla"}
 
 FACTOR_UNIDAD = {  # unidad del catálogo -> (unidad base del precio unitario, cuántas unidades del catálogo hay en ella)
     "gramo": ("kg", 1000), "g": ("kg", 1000), "kilogramo": ("kg", 1), "kg": ("kg", 1),
@@ -35,8 +36,8 @@ def precio_capturado(c: CapturaEntrada) -> float | None:
     """El precio que capturó la app: el campo del contrato o, si no viene, el que leyó el teléfono."""
     if c.precio_capturado is not None:
         return c.precio_capturado
-    for ch in c.chequeos_locales:
-        if ch.nombre == "precio_leido" and ch.valor:
+    for ch in c.chequeos_locales:  # solo una lectura que el teléfono dio por buena
+        if ch.nombre == "precio_leido" and ch.valor and ch.resultado == "ok":
             try:
                 return float(str(ch.valor).replace("$", "").replace(",", "").strip())
             except ValueError:
