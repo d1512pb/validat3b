@@ -174,6 +174,7 @@ const resultado = await r.json();   // RespuestaCaptura o { error }
 
 ## Cambios
 
+- **Motor 0.4.2** (sin cambios en el contrato): solo impiden aprobar los chequeos del teléfono `pantalla`, `nitidez`, `distancia`, `etiqueta_presente` y `codigo_foto_coincide` cuando llegan en `falla`. `codigo_barras` y `precio_leido` en `falla` ya no bloquean, porque el teléfono los marca así cuando no alcanzó a leer y el código es opcional. Si no llega `precio_capturado`, el servidor usa el `valor` de `precio_leido` solo si viene con `resultado: ok`. Recomendación para la app: «falla» solo cuando hay evidencia de un problema; si el chequeo no pudo concluir, «duda».
 - **0.3.0** (aditivo): en `traza` vienen `compuertas_fallidas`, `precio_regular`, `precio_promocion` y `doble_verificacion`. **Pídanle a la app que mande `precio_capturado`**: si no viene, el servidor usa el `valor` del chequeo `precio_leido`.
 - **0.2.0** (aditivo): `precio_capturado`, `marca_capturada` y los campos del catálogo dentro de `producto_esperado`, con los mismos datos que trae el set oficial de 3B. Lo que ya mandaban sigue funcionando.
 
