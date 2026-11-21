@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -126,7 +127,80 @@ def adaptador_oficial(ruta: Path) -> Iterable[Item]:
                        fotos, etiqueta, error_carga=repr(e))
 
 
-ADAPTADORES: dict[str, Callable[[Path], Iterable[Item]]] = {"jsonl": adaptador_jsonl, "oficial": adaptador_oficial}
+EXTENSIONES = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
+TIPOS = ("fachada", "producto", "etiqueta")
+_CLAVES = (("fachada", ("fachada", "facade", "tienda", "store")),
+           ("producto", ("producto", "product")),
+           ("etiqueta", ("etiqueta", "shelf", "label", "anaquel", "precio", "price")))
+_PATRON_TIPO = re.compile(r"(?i)[_\-\s.]*(fachada|facade|tienda|store|producto|product|etiqueta|shelf|label|anaquel|precio|price)[_\-\s.]*")
+
+
+def _tipo(nombre: str) -> str | None:
+    n = nombre.lower()
+    return next((t for t, claves in _CLAVES if any(k in n for k in claves)), None)
+
+
+def _metadatos_junto(ruta: Path) -> dict[str, dict]:
+    """Si junto a las fotos viene un .json o .csv con capture_id, se usan sus metadatos."""
+    import csv
+    filas: list = []
+    for p in sorted(ruta.glob("*.json")) + sorted(ruta.glob("*.csv")):
+        try:
+            if p.suffix.lower() == ".json":
+                d = json.loads(p.read_text(encoding="utf-8"))
+                filas += d if isinstance(d, list) else [d]
+            else:
+                with open(p, encoding="utf-8-sig") as f:
+                    filas += list(csv.DictReader(f))
+        except Exception as e:  # un archivo raro no detiene la corrida
+            log.warning("No se pudo leer %s: %s", p, e)
+    return {str(r["capture_id"]): r for r in filas if isinstance(r, dict) and r.get("capture_id")}
+
+
+def adaptador_carpeta(ruta: Path) -> Iterable[Item]:
+    """Carpeta de fotos en tríadas (fachada, producto, etiqueta), con o sin CSV.
+
+    1. Nombre con id y tipo (CAP-1_facade.jpg, CAP-1_product.jpg, CAP-1_shelf.jpg): se agrupa por id.
+    2. Sin tipo en el nombre: cada subcarpeta es una captura, o las fotos van de 3 en 3 en orden alfabético
+       (fachada, producto, etiqueta).
+    """
+    fotos = sorted(p for p in ruta.rglob("*") if p.is_file() and p.suffix.lower() in EXTENSIONES)
+    meta = _metadatos_junto(ruta)
+    grupos: dict[str, dict[str, Path]] = {}
+    sueltas: dict[Path, list[Path]] = {}
+    for p in fotos:
+        tipo = _tipo(p.stem)
+        if tipo is None:
+            sueltas.setdefault(p.parent, []).append(p)
+            continue
+        cid = _PATRON_TIPO.sub("_", p.stem).strip("_-. ") or p.parent.name
+        if p.parent != ruta and not cid:
+            cid = p.parent.name
+        grupos.setdefault(cid, {})[tipo] = p
+    for carpeta, lista in sueltas.items():
+        for i in range(0, len(lista), 3):
+            trio = lista[i:i + 3]
+            if carpeta != ruta and len(lista) <= 3:
+                cid = carpeta.name
+            else:
+                import os
+                cid = os.path.commonprefix([q.stem for q in trio]).strip("_-. ") or trio[0].stem
+            log.warning("Sin tipo en el nombre: %s → %s", cid, [q.name for q in trio])
+            grupos.setdefault(cid, {}).update(dict(zip(TIPOS, trio)))
+    for cid, f in grupos.items():
+        fila = meta.get(cid)
+        try:
+            captura = fila_a_captura(fila) if fila else None
+        except Exception as e:
+            log.warning("Metadatos inválidos %s: %s", cid, e)
+            captura = None
+        captura = captura or CapturaEntrada(capture_id=cid, producto_esperado={}, cadena="?", tienda="?",
+                                            fecha_hora_captura="1970-01-01T00:00:00-06:00")
+        yield Item(captura, {t: f.get(t) for t in TIPOS})
+
+
+ADAPTADORES: dict[str, Callable[[Path], Iterable[Item]]] = {
+    "jsonl": adaptador_jsonl, "oficial": adaptador_oficial, "carpeta": adaptador_carpeta}
 
 
 # ------------------------------------------------------------------ corrida
@@ -143,11 +217,20 @@ class Corrida:
         return self.salida / "detalle.jsonl"
 
     def cargar_previos(self) -> None:
+        """Lo ya procesado no se repite, salvo lo que falló por la IA (límite de tokens, red): eso se reintenta."""
         if self.jsonl.exists():
             for linea in self.jsonl.read_text(encoding="utf-8").splitlines():
                 if linea.strip():
                     d = json.loads(linea)
-                    self.procesados[d["oficial"]["capture_id"]] = d
+                    self.procesados[d["oficial"]["capture_id"]] = d  # la última línea de cada captura gana
+        for cid in [cid for cid, d in self.procesados.items() if con_falla(d)]:
+            del self.procesados[cid]
+
+
+def con_falla(fila: dict) -> bool:
+    """La captura quedó en respaldo o decidió sin algún modelo porque la llamada a la IA falló."""
+    detalle, traza = fila.get("detalle") or {}, fila.get("traza") or {}
+    return bool(detalle.get("error") or detalle.get("fallas_ia") or traza.get("capa_decisiva") == "respaldo")
 
 
 def _leer(p: Path | None) -> bytes | None:
@@ -220,6 +303,7 @@ def correr(items: Iterable[Item], corrida: Corrida, al_avanzar: Callable[[int, i
         "tokens_salida": tokens_out,
         "tokens_por_captura": round((tokens_in + tokens_out) / max(len(filas), 1), 1),
         "capa_decisiva": capas,
+        "con_fallas_ia": sum(con_falla(f) for f in filas),
     }
     etiquetas = {it.captura.capture_id: it.etiqueta for it in items if it.etiqueta}
     if etiquetas:

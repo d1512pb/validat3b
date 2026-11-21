@@ -90,7 +90,8 @@ def main() -> None:
             break
     if a.guardar and filas:
         costo, esc, tok, dinero, ta, tr = filas[0]
-        destino = Path("modelos") / a.modelo_rapido
+        from app.motor.fusion import CARPETA_MODELOS
+        destino = CARPETA_MODELOS / a.modelo_rapido
         destino.mkdir(parents=True, exist_ok=True)
         (destino / f"umbrales_cascada_{a.modelo_fuerte}.json").write_text(json.dumps(
             {"umbral_aprobar": float(ta), "umbral_p_rechazo": float(tr), "costo_estimado": costo,

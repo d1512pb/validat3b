@@ -47,7 +47,7 @@ def validar_detallado(c: CapturaEntrada, fotos_bytes: dict[str, bytes | None], m
     extra = _extra(c, fotos, indice or INDICE_GLOBAL)
     traza = Traza(version_motor=VERSION_MOTOR, capa_decisiva="local")
     detalle: dict = {"extra": extra, "analisis": {}, "nitidez": {t: f.nitidez for t, f in fotos.items()},
-                     "codigos": {t: f.codigos for t, f in fotos.items()}}
+                     "codigos": {t: f.codigos for t, f in fotos.items()}, "fallas_ia": []}
 
     def evaluar(analisis: ia.AnalisisIA, modelo_ia: str, etapa: str) -> dec.Evaluacion:
         fallas_ia = dec.senales_ia(c, analisis)
@@ -90,6 +90,7 @@ def validar_detallado(c: CapturaEntrada, fotos_bytes: dict[str, bytes | None], m
     except ia.ERRORES_IA as e:
         log.warning("Falla del modelo rápido en %s: %s", c.capture_id, e)
         traza.avisos.append("Modelo rápido no disponible")
+        detalle["fallas_ia"].append("rapido")
 
     # 3. Modelo fuerte solo si quedó en la zona gris (o si el rápido falló).
     en_zona_gris = dec.decidir(ev.p_valida, ev.p_rechazo, ev.umbrales) == Decision.revision_manual
@@ -103,6 +104,7 @@ def validar_detallado(c: CapturaEntrada, fotos_bytes: dict[str, bytes | None], m
             ev = evaluar(analisis, cfg.modelo_fuerte, "final")
         except ia.ERRORES_IA as e:
             log.warning("Falla del modelo fuerte en %s: %s", c.capture_id, e)
+            detalle["fallas_ia"].append("fuerte")
             if analisis_rapido is not None:  # sin el fuerte, decide el rápido con sus umbrales normales
                 ev = evaluar(analisis_rapido, cfg.modelo_rapido, "final")
 
@@ -128,6 +130,7 @@ def validar_detallado(c: CapturaEntrada, fotos_bytes: dict[str, bytes | None], m
                 ev, analisis = ev_f, r.analisis
         except ia.ERRORES_IA as e:
             log.warning("Falla de la verificación en %s: %s", c.capture_id, e)
+            detalle["fallas_ia"].append("verificacion")
             ev.compuertas_fallidas = [("doble_verificacion", "No se pudo confirmar la aprobación con el segundo modelo.")]
     detalle["compuertas_finales"] = [n for n, _ in ev.compuertas_fallidas]
     return _armar(c, ev, analisis, traza, inicio), detalle

@@ -167,6 +167,49 @@ def test_lote_completo_y_reanudable(tmp_path, monkeypatch):
     assert rep2["procesadas_ahora"] == 0 and len(llamadas) == n   # retomó sin volver a llamar
 
 
+def test_lote_reintenta_lo_que_fallo_por_la_ia(tmp_path, monkeypatch):
+    caida = {"activa": True}
+
+    def falso(c, fotos, modelo):
+        if caida["activa"] and c.capture_id == "CAP-001":
+            raise RuntimeError("límite de tokens")
+        return ResultadoIA(analisis(), modelo, 1500, 150, 5)
+
+    monkeypatch.setattr(ia, "analizar", falso)
+    datos = _dataset(tmp_path, 3)
+    salida = tmp_path / "corrida"
+    rep = correr(list(adaptador_jsonl(datos)), Corrida(salida, trabajadores=2))
+    resultados = json.loads((salida / "resultados.json").read_text(encoding="utf-8"))
+    assert len(resultados) == 3 and rep["con_fallas_ia"] == 1   # entregable aunque una falló
+    assert next(r for r in resultados if r["capture_id"] == "CAP-001")["decision"] == "revision_manual"
+    caida["activa"] = False
+    rep2 = correr(list(adaptador_jsonl(datos)), Corrida(salida, trabajadores=2))
+    assert rep2["procesadas_ahora"] == 1 and rep2["con_fallas_ia"] == 0   # solo reintentó la que falló
+
+
+def test_explicacion_dice_que_foto_tiene_el_problema():
+    from app.motor import decision as dec
+    lejana = analisis(captura_lejana=True, tamano_etiqueta=0.3, tamano_producto=0.6)
+    borrosa = analisis(imagen_borrosa=True, nitidez_producto=0.3, nitidez_etiqueta=0.9)
+    assert dec.fotos_con_problema("CAPTURA_LEJANA", lejana) == ["etiqueta"]
+    assert dec.detalle_foto("CAPTURA_LEJANA", lejana).startswith("Foto de la etiqueta lejana: la etiqueta ocupa 30%")
+    assert dec.detalle_foto("IMAGEN_BORROSA", borrosa) == "Foto del producto borrosa (nitidez 0.3 de 1)."
+
+
+def test_codigo_de_ia_solo_valido_y_corrige_cero_de_etiqueta():
+    from app.motor import decision as dec
+    assert dec.codigo_de_ia("7501791668870") == "7501791668873"   # etiqueta con 0 en lugar del verificador
+    assert dec.codigo_de_ia("7501791668873") == "7501791668873"
+    assert dec.codigo_de_ia("7501791668871") is None and dec.codigo_de_ia(None) is None
+
+
+def test_fachada_no_solo_con_evidencia():
+    sin_letrero = ia.normalizar_fachada(analisis(fachada_coincide="no", cadena_en_fachada=None), "Soriana")
+    otra = ia.normalizar_fachada(analisis(fachada_coincide="no", cadena_en_fachada="OXXO"), "Soriana")
+    misma = ia.normalizar_fachada(analisis(fachada_coincide="no", cadena_en_fachada="SORIANA"), "Soriana")
+    assert (sin_letrero.fachada_coincide, otra.fachada_coincide, misma.fachada_coincide) == ("no_se_distingue", "no", "si")
+
+
 def test_lote_sobrevive_a_errores(tmp_path, monkeypatch):
     def rompe(*a, **k):
         raise KeyError("algo raro")

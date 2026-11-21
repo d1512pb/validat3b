@@ -15,6 +15,11 @@ def sin_modelos_calibrados(tmp_path, monkeypatch):
     monkeypatch.setattr(config(), "umbral_aprobar", 0.95)
     monkeypatch.setattr(config(), "umbral_p_rechazo", 0.67)
     monkeypatch.setattr(config(), "cache_ia_dir", None)
+    # Cascada fija para las pruebas, sin importar lo que diga el .env local.
+    monkeypatch.setattr(config(), "modelo_rapido", "claude-haiku-5-5")
+    monkeypatch.setattr(config(), "modelo_fuerte", "claude-haiku-5-5-pensar")
+    monkeypatch.setattr(config(), "escalar_a_fuerte", True)
+    monkeypatch.setattr(config(), "verificar_aprobaciones", True)
     ia._cache.cache_clear()
 
     def sin_red(*a, **k):

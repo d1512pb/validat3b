@@ -45,7 +45,7 @@ def enviar(captura=CAPTURA, fotos=("fachada", "producto", "etiqueta"), modo=None
 def analisis(**cambios) -> AnalisisIA:
     base = dict(
         fotos_sin_relacion=False, es_foto_de_pantalla=False, imagen_borrosa=False, captura_lejana=False,
-        nitidez_producto=0.9, nitidez_etiqueta=0.9, tamano_producto=0.6, legibilidad_etiqueta=0.9,
+        nitidez_producto=0.9, nitidez_etiqueta=0.9, tamano_producto=0.6, tamano_etiqueta=0.6, legibilidad_etiqueta=0.9,
         fachada_es_tienda=True, cadena_en_fachada="Bodega Aurrerá", fachada_coincide="si", producto_visible=True,
         marca_en_foto="Coca-Cola", descripcion_en_foto="Refresco de cola", contenido_en_foto="600 ml",
         marca_coincide="si", contenido_coincide="si",

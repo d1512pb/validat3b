@@ -1,0 +1,45 @@
+{
+ "version_motor": "0.1.0",
+ "capturas": 100,
+ "procesadas_ahora": 100,
+ "segundos": 198.5,
+ "tokens_entrada": 610168,
+ "tokens_salida": 221776,
+ "tokens_por_captura": 8319.4,
+ "capa_decisiva": {
+  "rapido": 100
+ },
+ "evaluacion": {
+  "n": 100,
+  "costo_total": 101,
+  "costo_por_captura": 1.01,
+  "costo_todo_a_revision": 100,
+  "costo_aprobar_todo": 670,
+  "acierto_decision": 0.47,
+  "verdad_vs_decision": {
+   "revision_manual": {
+    "revision_manual": 20,
+    "rechazada": 13
+   },
+   "rechazada": {
+    "rechazada": 27,
+    "revision_manual": 7
+   },
+   "aprobada": {
+    "rechazada": 1,
+    "revision_manual": 32
+   }
+  },
+  "aprobadas": 0,
+  "rechazadas": 41,
+  "revision_manual": 59,
+  "precision_aprobadas": 1.0,
+  "precision_aprobadas_cota_inferior": 1.0,
+  "cumple_precision": true,
+  "aprobaciones_de_invalidas": 0,
+  "rechazos_de_validas": 1,
+  "rechazos_de_revision": 13,
+  "acierto_reason_code": 0.4074,
+  "acierto_precio": null
+ }
+}

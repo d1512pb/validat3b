@@ -44,3 +44,22 @@ Es el formato oficial del reto. `decision` solo puede ser `aprobada`, `rechazada
   "explicacion": "El producto de la foto es de otra marca que la del contratipo esperado."
 }
 ```
+
+## Cómo generar el JSON de entrega (set ciego)
+
+Configuración final: **Haiku 5.5 razonando (esfuerzo medio), prompt v4**, con la fusión y los umbrales calibrados en `servidor/modelos/`. Evidencia y números en [`docs/pruebas/README.md`](docs/pruebas/README.md).
+
+```bash
+cd servidor
+python -m venv .venv
+.venv/Scripts/pip install -r requirements.txt     # en Linux/Mac: .venv/bin/pip
+cp .env.ejemplo .env                             # y pon tu ANTHROPIC_API_KEY en .env
+# Descomprime los zips del set junto a capturas.json (imágenes en imagenes/)
+.venv/Scripts/python -m scripts.correr_lote --formato oficial \
+    --datos ../datos/evaluacion/capturas.json --salida ../datos/corridas/ciego --trabajadores 8
+```
+
+- **La salida** es `../datos/corridas/ciego/resultados.json`: una respuesta por `capture_id`, en el formato oficial.
+- **Es reanudable:** si se corta, se vuelve a correr el mismo comando y reintenta solo lo que falló.
+- **También acepta una carpeta de fotos sin CSV:** `--formato carpeta --datos <carpeta>`.
+- **Servidor en línea**, mismo motor, para la app: `https://validat3b-production.up.railway.app` (contrato en [`contratos/`](contratos/)).

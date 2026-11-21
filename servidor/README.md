@@ -12,7 +12,7 @@ fotos + datos ─▶ 1. capa local (0 tokens) ─▶ ¿rechazo seguro? ─ sí �
                     código de barras contra catálogo ▼
                  2. Claude Haiku (barato) ─▶ p = probabilidad de captura válida
                                                  │
-                    ¿p en zona gris (0.33 – 0.95)? ── sí ─▶ 3. Claude Sonnet ─▶ p
+                    ¿p en zona gris (0.33 – 0.95)? ── sí ─▶ 3. Haiku razonando ─▶ p
                                                  │ no
                                                  ▼
                  aprobada si p ≥ 0.95 · rechazada si p ≤ 0.33 · si no, revision_manual
@@ -39,7 +39,7 @@ cd servidor
 python -m venv .venv
 .venv/Scripts/python -m pip install -r requirements.txt pytest httpx   # en Linux o Mac: .venv/bin/python
 cp .env.ejemplo .env                     # y pega FOUNDRY_API_KEY
-.venv/Scripts/python -m scripts.probar_foundry     # ¿responden Haiku y Sonnet?
+.venv/Scripts/python -m scripts.probar_foundry     # ¿responden los modelos configurados?
 .venv/Scripts/python -m uvicorn app.api:app --reload --port 8000
 .venv/Scripts/python -m pytest -q pruebas          # pruebas sin red
 .venv/Scripts/python -m scripts.exportar_contrato  # regenera contratos/ si cambia app/contrato.py

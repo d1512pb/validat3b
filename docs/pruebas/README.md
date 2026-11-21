@@ -3,6 +3,7 @@
 21 de noviembre de 2026. Todas las pruebas usan las **100 capturas etiquetadas de desarrollo** del reto: 33 aprobadas, 34 rechazadas y 33 a revisión manual. Las imágenes y los metadatos de 3B **no** están en el repositorio (`datos/` va en `.gitignore`). Aquí solo quedan resultados agregados.
 
 - [`peor-caso.md`](peor-caso.md): **tabla simple para el pitch**, con el costo por imagen en el peor caso (todas las capturas pasan por el modelo) y la precisión de cada modelo.
+- [`robustez.md`](robustez.md) y [`robustez-fusion.md`](robustez-fusion.md): la elección de la segunda capa, medida con 10 particiones distintas.
 - [`comparacion.md`](comparacion.md): la comparación final entre configuraciones (generada con `scripts/comparar.py`).
 - [`reportes/`](reportes/): el `reporte.json` de cada corrida (tokens, tiempo y evaluación agregada).
 
@@ -69,14 +70,40 @@ Medidas dentro de muestra con el motor real, las tres configuraciones finales da
 
 **Lo que puede aportar móvil:** si la app manda niveles de confianza de las imágenes en `chequeos_locales.puntaje` (nitidez, distancia, iluminación), entran como señales a la fusión. Con eso habría menos capturas válidas en revisión, sin aflojar las compuertas.
 
+## Elección de la segunda capa (10 particiones)
+
+**Decisión del equipo: Haiku → Haiku razonando (esfuerzo medio) con doble llave.** Es lo que corre en Railway desde el 21-nov-2026.
+
+Con 100 capturas, una sola validación cruzada mueve el costo ±5 puntos. Para separar lo real del ruido, cada configuración se midió con **10 particiones distintas** y se compararon por pares, con la misma partición para todas ([`robustez.md`](robustez.md) y [`robustez-fusion.md`](robustez-fusion.md)).
+
+| Configuración | Costo operativo (media ± desv.) | FP | FN | Acierto general | Tokens/captura | vs. Haiku razonando solo |
+|---|---:|---:|---:|---:|---:|---|
+| Haiku solo | 81.7 ± 1.9 | 0 | 0 | 53% | 6,631 | +11.4; peor en 10 de 10 |
+| Haiku razonando (medio) solo | 70.3 ± 5.0 | 0 | 0 | 66% | 7,429 | — |
+| **Cascada Haiku → Haiku razonando (medio)** | **68.3 ± 5.0** | **0** | **0** | **68%** | 12,304 | **−2.0; mejor en 10 de 10** |
+| Haiku razonando (alto) solo | 68.9 ± 3.5 | 0 | 0.3 | 69% | 8,319 | −1.4; mejor en 7 de 10 |
+| Cascada Haiku → Haiku razonando (alto) | 68.1 ± 3.5 | 0 | 0.3 | 70% | 13,050 | −2.2; mejor en 8 de 10 |
+| Cascada Haiku → fusión de las dos lecturas | 76.1 ± 6.0 | 0 | 0.1 | 60% | 12,359 | +5.8; peor en 9 de 10 |
+
+**Lectura:**
+- **La cascada le gana a Haiku razonando solo en las 10 particiones,** pero por poco: 2 puntos por cada 100 capturas, con 66% más tokens.
+  - Vale la pena si cada revisión humana cuesta más que los tokens extra.
+  - Con ~1 peso por imagen revisada (dato de finanzas de 3B), 2 revisiones menos por cada 100 capturas ahorran ~2–6 pesos. Los tokens extra cuestan ~$0.09 de dólar, unos 1.6 pesos a ~18 pesos por dólar.
+- **Esfuerzo alto no mejora de forma clara:** da el mismo costo con más tokens, y en algunas particiones rechaza una captura válida (FN 0.3 en promedio). No se adopta.
+- **Fusión de las dos lecturas** (que la decisión final vea a Haiku y a Haiku razonando juntos): empeora. Con 100 capturas, el doble de señales sobreajusta. No se adopta.
+- **Opus no se probó.** El costo humano por revisión lo haría pagable, pero Haiku razonando ya iguala a Sonnet. Queda como opción si el set ciego trae casos difíciles.
+
+**Finanzas:** a ~1 peso por imagen revisada, cada captura que se resuelve sin humano ahorra unos 3 pesos (3 imágenes). La cascada cuesta ~$0.0019 de dólar por captura, unos 0.03 pesos. En 10,000 capturas resuelve sola ~3,600: ahorra del orden de 10,000 pesos de revisión, contra unos 340 pesos de IA.
+
 ## Cómo cambiar la configuración del servidor
 
 Todo se hace con variables de entorno (Railway → Variables). Los modelos calibrados de cada opción ya están en `servidor/modelos/`.
 
 | Configuración | `MODELO_RAPIDO` | `MODELO_FUERTE` | `ESCALAR_A_FUERTE` | `VERIFICAR_APROBACIONES` |
 |---|---|---|---|---|
-| Cascada Haiku → Sonnet (hoy) | `claude-haiku-5-5` | `claude-sonnet-5-5` | `true` | `true` |
-| Cascada Haiku → Haiku razonando | `claude-haiku-5-5` | `claude-haiku-5-5-pensar` | `true` | `true` |
+| **Cascada Haiku → Haiku razonando (desplegada)** | `claude-haiku-5-5` | `claude-haiku-5-5-pensar` | `true` | `true` |
+| Cascada Haiku → Haiku razonando con esfuerzo alto | `claude-haiku-5-5` | `claude-haiku-5-5-pensar-alto` | `true` | `true` |
+| Cascada Haiku → Sonnet | `claude-haiku-5-5` | `claude-sonnet-5-5` | `true` | `true` |
 | Solo Haiku razonando | `claude-haiku-5-5-pensar` | (no se usa) | `false` | `false` |
 | Solo Haiku sin razonar | `claude-haiku-5-5` | (no se usa) | `false` | `false` |
 
@@ -120,6 +147,7 @@ done
 | dev_haiku_p3 | p3 | 384/768/768 | api | 610,068 | 52,985 | 6,630 | 89 | $0.09 | 76 | 0 |
 | dev_sonnet_p3 | p3 | 384/768/768 | api | 610,168 | 56,573 | 6,667 | 110 | $1.79 | 66 | 0 |
 | dev_haikupensar_p3 | p3 | 384/768/768 | api | 610,168 | 132,748 | 7,429 | 123 | $0.13 | 102 (sin calibrar) | 0 |
+| dev_haikupensaralto_p3 | p3 | 384/768/768 | api | 610,168 | 221,776 | 8,319 | 199 | $0.17 | (sin calibrar) | 0 |
 | dev_haiku_p3b | p3 | 384/768/768 | caché | — | — | 6,630 | 28 | $0 | 94 | 0 |
 | dev_sonnet_p3b | p3 | 384/768/768 | caché | — | — | 6,667 | 28 | $0 | 97 | 0 |
 | dev_cascada_768 | p2 | 384/768/768 | caché | — | — | 8,592 | 32 | $0 | 53 | 0 |
@@ -128,7 +156,7 @@ done
 | dev_final_cascada_haikupensar | p3 | 384/768/768 | caché | — | — | 11,817 | 31 | $0 | 52 | 0 |
 | dev_final_solo_haikupensar | p3 | 384/768/768 | caché | — | — | 7,429 | 28 | $0 | 52 | 0 |
 
-**Gasto total de la llave en pruebas: $6.33** en 9 corridas que llamaron al modelo: 874 capturas, 2,622 imágenes. A eso se suman ~$0.02 de 3 pruebas reales en Railway.
+**Gasto total de la llave en pruebas: $6.50** en 10 corridas que llamaron al modelo: 974 capturas, 2,922 imágenes. A eso se suman ~$0.02 de 3 pruebas reales en Railway.
 
 ## Qué aprendimos en cada versión
 
@@ -140,3 +168,75 @@ done
 | motivo aprendido | Clasificador de `reason_code` con los motivos del analista | 41–56% (reglas) → 59–68% de acierto fuera de muestra |
 | p3 | La IA lee precio regular, oferta, volumen, tachado y unitario sin conocer el capturado; 16 compuertas; doble llave | 0 FP en todas las configuraciones. El esquema más grande suma ~1,300 tokens por llamada |
 | Haiku razonando | Haiku 5.5 con razonamiento adaptativo como segundo modelo | Misma calidad que Sonnet por 8 a 14 veces menos |
+| Segunda capa | 10 particiones: esfuerzo medio contra alto, y fusión de las dos lecturas | La cascada con esfuerzo medio es la más consistente; alto y fusión no mejoran |
+
+## Set de evaluación (21 de noviembre) y prompt v4
+
+**El set real:** 50 capturas sin etiquetas, con todos los metadatos y el mismo formato que desarrollo. 27 son de Bodega Aurrerá, Bara o Walmart, cadenas que en desarrollo nunca salieron aprobadas.
+
+### ¿Reentrenar solo con aprobadas y rechazadas?
+Lo medimos con 10 particiones, puntuando solo las 67 capturas de desarrollo que son aprobada o rechazada:
+
+| Entrenamiento | Costo en las 67 | Aprobadas bien | Aprobadas mal |
+|---|---:|---:|---:|
+| Con las 100 (incluye «revisión manual») | **28.1 ± 5.3** | 13.3 | 0 |
+| Solo con las 67 | 37.5 ± 1.0 | 0 | 0 |
+
+Entrenar sin las «revisión manual» sale **9 puntos peor**: el modelo pierde la confianza para aprobar. Las capturas de revisión sí enseñan algo.
+
+### Prompt v4: qué significa «lejana» para los analistas
+«Capturas lejanas» es el motivo de rechazo más común (18 de 34). Revisando las fotos de desarrollo:
+- En la mayoría, **la foto de etiqueta muestra el anaquel con la etiqueta como un recuadro chico**. El precio grande se lee, pero la descripción no.
+- En otras, la foto de producto muestra el anaquel completo en vez de una unidad de cerca.
+- El prompt v3 decía «el texto no se lee sin zoom», y el modelo daba por buenas esas fotos porque leía el precio grande. Solo detectaba 9 de las 18.
+
+El v4 define «lejana» así y agrega el campo `tamano_etiqueta`. Ahora detecta **18 de 18**.
+
+| Desarrollo, 10 particiones | Prompt v3 | Prompt v4 |
+|---|---:|---:|
+| Haiku razonando solo, 100 capturas | 70.3 ± 5.0 | **65.0 ± 1.3** |
+| Cascada Haiku → Haiku razonando, 100 capturas | 68.3 ± 5.0 | **64.8 ± 1.2** |
+| Haiku razonando solo, 67 aprobadas o rechazadas | 30.1 ± 5.5 | **25.6 ± 0.8** |
+| Cascada, 67 aprobadas o rechazadas | 28.1 ± 5.3 | **25.4 ± 0.9** |
+
+Con el v4, la cascada ya no gana nada: empata con Haiku razonando solo (−0.2 puntos) y gasta 13,700 tokens por captura contra 7,900. **Configuración elegida: Haiku razonando solo con el prompt v4.**
+
+También probamos quitar el bloqueo duro de la regla de calidad y dejar «lejana» solo como señal. Sale peor (65.7 y 26.3), así que se queda.
+
+### Versiones del JSON del set real
+| Versión | Configuración | Aprobadas | Rechazadas | Revisión | Tokens por captura |
+|---|---|---:|---:|---:|---:|
+| v1 | Prompt v3, cascada Haiku → Haiku razonando | 9 | 21 | 20 | 11,549 |
+| **v2** | Prompt v4, Haiku razonando solo | 4 | 18 | 28 | **7,743** |
+
+En la v2, 5 aprobaciones de la v1 pasan a revisión: 3 porque ahora se detectan como lejanas y 2 porque quedan apenas abajo del umbral. Ninguna decisión se cambió a mano; todas salen del motor.
+
+### Fachada estable para la demo
+- **El problema:** con fotos dudosas, el modelo alternaba entre «la fachada no corresponde» y «no se distingue» para la misma foto, y eso cambiaba la decisión.
+- **El arreglo:** ahora solo cuenta como «no corresponde» si el letrero dice otra cadena. En desarrollo y en el set real el modelo nunca contestó «no», así que la calibración y las decisiones no cambian.
+- **En Railway**, la caché de respuestas (`CACHE_IA_DIR`) hace que la misma foto reciba siempre la misma respuesta.
+
+### ¿Más esfuerzo de razonamiento? (prompt v4)
+| Haiku razonando, 10 particiones | Medio (en línea) | Alto | Máximo |
+|---|---:|---:|---:|
+| Costo en las 67 aprobadas o rechazadas | **25.6 ± 0.8** | 27.8 ± 1.9 | sin medir |
+| Costo en las 100, con el supuesto conservador | 65.0 ± 1.3 | 64.2 ± 2.4 | sin medir |
+| Aprobadas bien (de 33) | 13.6 | 17.0 | — |
+| Tokens por captura | **7,858** | 8,866 | ~33,000 (piloto de 3) |
+| Segundos por captura | ~10 | ~13 | ~140 |
+
+- **El alto aprueba más válidas, pero en las capturas aprobadas o rechazadas sale 2.2 puntos peor** (peor en 8 de 10 particiones), porque rechaza menos inválidas. Como en el set ciego solo hay aprobada o rechazada, **nos quedamos con el medio**.
+- **El máximo tarda unos 140 segundos por captura,** más que los 60 que espera la app, y gasta 4 veces más tokens. Queda como opción (`-pensar-max`, con streaming), sin usarse.
+
+### Estabilidad entre corridas
+El servidor en línea y la v2 del lote son el mismo motor y coinciden en 45 de 50. Las 5 diferencias son casos límite. Haiku 5.5 no permite fijar la temperatura, así que esa variación es del modelo; con la misma foto, la caché del servidor da siempre la misma respuesta.
+
+### v3: explicaciones auditables (mismas decisiones)
+- **Qué cambia:** cuando la captura es lejana o borrosa, la explicación ahora dice qué foto tiene el problema, por ejemplo «Foto de la etiqueta lejana: la etiqueta ocupa 30% del ancho de su foto…» o «Foto del producto borrosa (nitidez 0.5 de 1)». La validación que falla es la de esa foto: `producto` o `evidencia_precio`.
+- **Qué no cambia:** la v3 tiene exactamente las mismas decisiones, motivos y precios que la v2. Cambian 18 explicaciones y 10 validaciones.
+- **Es el JSON recomendado para entregar:** `datos/entregas/validat3b_v3.json`.
+
+### JSON final: códigos de barras válidos
+- **El hallazgo:** las etiquetas de Walmart y Bodega Aurrerá imprimen el código con **0 en lugar del dígito verificador**: la etiqueta dice 7501791668870 y la lata 7501791668873. La IA transcribía lo de la etiqueta y reportaba un código inválido.
+- **El arreglo:** un código transcrito por la IA solo se reporta si es un GTIN válido. Si termina en 0 y no es válido, se recalcula el dígito verificador.
+- **El resultado:** se corrigen 3 códigos y los 3 quedan iguales al esperado. Todo lo demás es idéntico a la v3. Archivo para entregar: `datos/entregas/validat3b_final.json`.

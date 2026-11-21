@@ -15,6 +15,10 @@ from pathlib import Path
 
 
 def main() -> None:
+    # En Windows la consola redirigida usa cp1252 y truena con «→» o acentos: forzamos UTF-8.
+    for flujo in (sys.stdout, sys.stderr):
+        if hasattr(flujo, "reconfigure"):
+            flujo.reconfigure(encoding="utf-8", errors="replace")
     ap = argparse.ArgumentParser()
     ap.add_argument("--datos", required=True, type=Path)
     ap.add_argument("--salida", required=True, type=Path)
@@ -47,6 +51,9 @@ def main() -> None:
     print(f"{len(items)} capturas → {a.salida}")
     rep = correr(items, Corrida(a.salida, a.trabajadores, a.modo), avance)
     print(json.dumps(rep, ensure_ascii=False, indent=1))
+    if rep.get("con_fallas_ia"):
+        print(f"\nAVISO: {rep['con_fallas_ia']} capturas fallaron con la IA y quedaron en revisión manual. "
+              "resultados.json ya es entregable; vuelve a correr el mismo comando para reintentarlas.")
 
 
 if __name__ == "__main__":
