@@ -79,6 +79,10 @@ object CapturaMapper {
                 tipoPrecio = c.precio.tipo.name,
                 fuenteDescripcion = pe.fuente?.name,
                 confianzaSugerencia = pe.confianzaSugerencia?.let { redondear2(it.toDouble()) },
+                confianzaPrecio = c.precio.confianza?.let { redondear2(it.toDouble()) },
+                precioCandidatos = c.precio.candidatos.takeIf { it.isNotEmpty() }?.map {
+                    CandidatoPrecioDto(redondear2(it.valor), it.forma.name, redondear2(it.puntuacion.toDouble()))
+                },
             ),
             cadena = s.cadena.etiqueta,
             tienda = s.tienda,

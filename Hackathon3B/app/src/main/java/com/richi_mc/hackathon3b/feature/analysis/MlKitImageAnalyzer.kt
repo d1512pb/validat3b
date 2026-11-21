@@ -15,13 +15,18 @@ import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import android.util.Log
 import com.richi_mc.hackathon3b.core.model.AnalisisImagen
+import com.richi_mc.hackathon3b.core.model.CajaPx
+import com.richi_mc.hackathon3b.core.model.ElementoOcr
 import com.richi_mc.hackathon3b.core.model.LineaOcr
+import com.richi_mc.hackathon3b.core.model.OcrEnhancer
 import com.richi_mc.hackathon3b.core.model.ImageAnalyzer
 import com.richi_mc.hackathon3b.core.model.PrecioDetectado
 import com.richi_mc.hackathon3b.core.model.PriceParser
 import com.richi_mc.hackathon3b.core.model.Problema
 import com.richi_mc.hackathon3b.core.model.TipoFoto
 import com.richi_mc.hackathon3b.core.model.Umbrales
+import com.richi_mc.hackathon3b.feature.analysis.price.necesitaReOcr
+import com.richi_mc.hackathon3b.feature.analysis.price.zonaReOcr
 import com.richi_mc.hackathon3b.feature.labeling.MlKitLabeler
 import com.richi_mc.hackathon3b.feature.labeling.problemasPorEtiquetas
 import kotlinx.coroutines.CancellationException
@@ -39,6 +44,9 @@ import kotlin.math.max
  * Crea un cliente ML Kit de código de barras y uno de OCR por instancia; llama a [close]
  * cuando ya no se use (el contenedor de la app vive lo mismo que el proceso, así que basta con eso).
  *
+ * El [ocrEnhancer] (opcional) re-lee el recorte de la zona del precio en las etiquetas dudosas (PLAN3 §5.A).
+ * Solo se usa si las coordenadas del bitmap analizado coinciden con las del archivo (ver [Decodificada]).
+ *
  * El [labeler] (opcional) lo cierra quien lo creó. Sin él no se etiqueta ni se agregan problemas por etiquetas.
  *
  * Si la imagen no se puede decodificar devuelve un análisis con nitidez/brillo 0 y los problemas
@@ -48,6 +56,7 @@ class MlKitImageAnalyzer(
     @Suppress("unused") context: Context,
     private val priceParser: PriceParser,
     private val labeler: MlKitLabeler? = null,
+    private val ocrEnhancer: OcrEnhancer? = null,
 ) : ImageAnalyzer, Closeable {
 
     private val barcodeScanner: BarcodeScanner = BarcodeScanning.getClient(
@@ -63,30 +72,33 @@ class MlKitImageAnalyzer(
 
     override suspend fun analizar(path: String, tipo: TipoFoto): AnalisisImagen =
         withContext(Dispatchers.Default) {
-            val bitmap = decodificar(path)
+            val decodificada = decodificar(path)
                 ?: return@withContext AnalisisImagen(
                     tipo = tipo, path = path, nitidez = 0.0, brillo = 0.0, textoOcr = "",
                     confianzaOcr = null, codigoBarras = null, formatoCodigo = null,
                     problemas = listOf(Problema.BORROSA, Problema.OSCURA),
                 )
             try {
-                analizarBitmap(bitmap, path, tipo)
+                analizarBitmap(decodificada.bitmap, path, tipo, decodificada.coincideConArchivo)
             } finally {
-                bitmap.recycle()
+                decodificada.bitmap.recycle()
             }
         }
 
     /** Precio de una imagen ya analizada (lo usa la pantalla de revisión). */
-    fun precioDe(analisis: AnalisisImagen): PrecioDetectado = priceParser.parse(analisis.textoOcr)
+    fun precioDe(analisis: AnalisisImagen): PrecioDetectado = analisis.precio ?: priceParser.parse(analisis.lineasOcr)
 
     override fun close() {
         barcodeScanner.close()
         textRecognizer.close()
     }
 
-    private suspend fun analizarBitmap(bitmap: Bitmap, path: String, tipo: TipoFoto): AnalisisImagen =
+    private suspend fun analizarBitmap(
+        bitmap: Bitmap, path: String, tipo: TipoFoto, coincideConArchivo: Boolean,
+    ): AnalisisImagen =
         coroutineScope {
             val problemas = mutableListOf<Problema>()
+            var precioFinal: PrecioDetectado? = null
 
             // 1-2. Nitidez y brillo sobre gris a 512 px.
             val gris = bitmap.aGris512()
@@ -123,9 +135,17 @@ class MlKitImageAnalyzer(
 
             // 7. Precio (solo etiqueta).
             if (tipo == TipoFoto.ETIQUETA) {
-                val precio = priceParser.parse(ocr.texto)
+                var precio = priceParser.parse(ocr.lineas)
+                if (ocrEnhancer != null && coincideConArchivo && necesitaReOcr(precio, ocr.lineas)) {
+                    zonaReOcr(ocr.lineas, precio, bitmap.width, bitmap.height)?.let { zona ->
+                        val extra = ocrEnhancer.reOcr(path, zona)
+                        if (extra.isNotEmpty()) precio = priceParser.parse(ocr.lineas, extra)
+                    }
+                }
                 if (precio.valor == null) problemas += Problema.SIN_PRECIO
                 if (!precio.tienePrecioUnitario) problemas += Problema.SIN_PRECIO_UNITARIO
+                if (etiquetaLejos(ocr.lineas, bitmap.height)) problemas += Problema.ETIQUETA_LEJOS
+                precioFinal = precio
             }
 
             // 8. Etiquetas de imagen: producto visible, fachada de tienda, foto de pantalla.
@@ -141,9 +161,16 @@ class MlKitImageAnalyzer(
                 textoOcr = ocr.texto, confianzaOcr = ocr.confianza,
                 codigoBarras = codigo?.valor, formatoCodigo = codigo?.formato,
                 areaCodigo = codigo?.area, problemas = problemas,
-                etiquetas = etiquetas, lineasOcr = ocr.lineas,
+                etiquetas = etiquetas, lineasOcr = ocr.lineas, precio = precioFinal,
             )
         }
+
+    /** La línea más alta con dígitos mide menos de [Umbrales.alturaEtiquetaMin] del alto de la imagen. */
+    private fun etiquetaLejos(lineas: List<LineaOcr>, altoImg: Int): Boolean {
+        if (altoImg <= 0) return false
+        val maxAlto = lineas.filter { l -> l.texto.any { it.isDigit() } }.maxOfOrNull { it.alturaPx } ?: return false
+        return maxAlto < Umbrales.alturaEtiquetaMin * altoImg
+    }
 
     private class CodigoLeido(val valor: String, val formato: String?, val area: Double?)
     private class TextoLeido(val texto: String, val confianza: Float?, val lineas: List<LineaOcr> = emptyList())
@@ -175,10 +202,19 @@ class MlKitImageAnalyzer(
             texto = resultado.text,
             confianza = if (confianzas.isEmpty()) null else confianzas.average().toFloat(),
             lineas = resultado.textBlocks.flatMap { it.lines }.map { l ->
-                LineaOcr(l.text, l.boundingBox?.height() ?: 0, l.boundingBox?.top ?: 0)
+                LineaOcr(
+                    texto = l.text,
+                    caja = l.boundingBox.aCaja(),
+                    elementos = l.elements.map { e ->
+                        ElementoOcr(e.text, e.boundingBox.aCaja(), e.symbols.map { it.boundingBox.aCaja() })
+                    },
+                )
             },
         )
     }
+
+    private fun android.graphics.Rect?.aCaja(): CajaPx =
+        if (this == null) CajaPx(0, 0, 0, 0) else CajaPx(left, top, right, bottom)
 
     /** Un fallo de ML Kit (modelo no disponible, etc.) se trata como "no se detectó nada". */
     private inline fun <T> seguro(bloque: () -> T): T? =
@@ -198,8 +234,17 @@ class MlKitImageAnalyzer(
         else -> null
     }
 
+    /**
+     * Bitmap analizado. [coincideConArchivo] = sus coordenadas son las del archivo tal cual (sin inSampleSize ni
+     * rotación EXIF), que es lo que asume [OcrEnhancer] (decodifica el archivo completo y sin EXIF). Con las fotos
+     * de la app siempre es true: se guardan con lado mayor <= 1600 px (inSampleSize = 1 aquí, que solo sube con
+     * lado >= 3200) y ya rotadas, sin EXIF. Si fuera false (foto importada), se omite el re-OCR en vez de recortar
+     * una zona equivocada.
+     */
+    private class Decodificada(val bitmap: Bitmap, val coincideConArchivo: Boolean)
+
     /** Decodifica con inSampleSize (lado mayor >= ~1600 px) y aplica la orientación EXIF. */
-    private fun decodificar(path: String): Bitmap? {
+    private fun decodificar(path: String): Decodificada? {
         val limites = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeFile(path, limites)
         if (limites.outWidth <= 0 || limites.outHeight <= 0) return null
@@ -218,9 +263,9 @@ class MlKitImageAnalyzer(
         } catch (e: Exception) {
             0f
         }
-        if (grados == 0f) return bmp
+        if (grados == 0f) return Decodificada(bmp, coincideConArchivo = sample == 1)
         val rotado = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, Matrix().apply { postRotate(grados) }, true)
         if (rotado !== bmp) bmp.recycle()
-        return rotado
+        return Decodificada(rotado, coincideConArchivo = false)
     }
 }

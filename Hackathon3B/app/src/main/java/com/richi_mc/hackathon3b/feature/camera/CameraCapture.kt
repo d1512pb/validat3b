@@ -14,6 +14,7 @@ import androidx.camera.core.FocusMeteringAction
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
+import androidx.camera.core.SurfaceOrientedMeteringPointFactory
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.core.Animatable
@@ -242,7 +243,15 @@ private fun CamaraActiva(
             provider = p
             preview.setSurfaceProvider(previewView.surfaceProvider)
             p.unbindAll()
-            camera = p.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
+            val cam = p.bindToLifecycle(lifecycleOwner, CameraSelector.DEFAULT_BACK_CAMERA, preview, imageCapture)
+            camera = cam
+            // Etiquetas: enfoque inicial al centro del marco (el autoenfoque a veces toma el fondo).
+            if (tipo == TipoFoto.ETIQUETA) {
+                runCatching {
+                    val punto = SurfaceOrientedMeteringPointFactory(1f, 1f).createPoint(0.5f, 0.5f)
+                    cam.cameraControl.startFocusAndMetering(FocusMeteringAction.Builder(punto).build())
+                }
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -350,7 +359,7 @@ data class FocoToque(val punto: Offset, val id: Int)
 private fun TipoFoto.instruccion() = when (this) {
     TipoFoto.FACHADA -> "Encuadra la fachada con el nombre de la tienda"
     TipoFoto.PRODUCTO -> "El código de barras debe verse completo"
-    TipoFoto.ETIQUETA -> "Que se lean el precio y la descripción"
+    TipoFoto.ETIQUETA -> "Que la etiqueta llene el marco"
 }
 
 /**
@@ -399,8 +408,16 @@ fun CameraOverlay(
 
             // Marco guía.
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                val ancho = if (tipo == TipoFoto.PRODUCTO) 0.74f else 0.9f
-                val proporcion = if (tipo == TipoFoto.PRODUCTO) 1f else 1.6f
+                val ancho = when (tipo) {
+                    TipoFoto.PRODUCTO -> 0.74f
+                    TipoFoto.ETIQUETA -> 0.85f
+                    else -> 0.9f
+                }
+                val proporcion = when (tipo) {
+                    TipoFoto.PRODUCTO -> 1f
+                    TipoFoto.ETIQUETA -> 1.5f
+                    else -> 1.6f
+                }
                 Box(
                     Modifier
                         .fillMaxWidth(ancho)

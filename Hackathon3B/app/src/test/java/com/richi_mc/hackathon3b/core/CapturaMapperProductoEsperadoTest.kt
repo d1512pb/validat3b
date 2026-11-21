@@ -4,7 +4,10 @@ import com.richi_mc.hackathon3b.core.data.toEntity
 import com.richi_mc.hackathon3b.core.data.toModelo
 import com.richi_mc.hackathon3b.core.model.AnalisisImagen
 import com.richi_mc.hackathon3b.core.model.Cadena
+import com.richi_mc.hackathon3b.core.model.CajaPx
 import com.richi_mc.hackathon3b.core.model.Captura
+import com.richi_mc.hackathon3b.core.model.CandidatoPrecio
+import com.richi_mc.hackathon3b.core.model.FormaPrecio
 import com.richi_mc.hackathon3b.core.model.EtiquetaImagen
 import com.richi_mc.hackathon3b.core.model.FuenteDescripcion
 import com.richi_mc.hackathon3b.core.model.LineaOcr
@@ -118,6 +121,90 @@ class CapturaMapperProductoEsperadoTest {
         assertNull(p.precio); assertNull(p.descripcionDetectada); assertNull(p.confianzaSugerencia)
         assertEquals("MANUAL", p.fuenteDescripcion)
         assertEquals(false, p.editadoPorUsuario)
+    }
+
+    // ------------------------------------------------- confianza y candidatos del precio
+
+    private fun candidato(valor: Double, forma: FormaPrecio, punt: Float) = CandidatoPrecio(
+        valor, forma, "\$$valor", CajaPx(10, 20, 110, 80), 0.9f, true, false, false, punt,
+    )
+
+    private fun capturaConPrecio(precio: PrecioDetectado) = captura().copy(precio = precio)
+
+    @Test
+    fun manda_confianza_y_candidatos_del_precio_con_dos_decimales() {
+        val precio = PrecioDetectado(
+            24.9, TipoPrecio.REGULAR, false, "\$24.90", confianza = 0.8249f,
+            candidatos = listOf(
+                candidato(24.9, FormaPrecio.CENTAVOS_MISMA_LINEA, 0.8249f),
+                candidato(2490.0, FormaPrecio.ENTERO, 0.314f),
+            ),
+        )
+        val p = dto(capturaConPrecio(precio)).productoEsperado
+        assertEquals(0.82, p.confianzaPrecio!!, 0.0)
+        val cands = p.precioCandidatos!!
+        assertEquals(2, cands.size)
+        assertEquals(24.9, cands[0].valor, 0.0)
+        assertEquals("CENTAVOS_MISMA_LINEA", cands[0].forma)
+        assertEquals(0.82, cands[0].puntuacion, 0.0)
+        assertEquals("ENTERO", cands[1].forma)
+        assertEquals(0.31, cands[1].puntuacion, 0.0)
+
+        val pe = json(dto(capturaConPrecio(precio)))["producto_esperado"]!!.jsonObject
+        assertEquals("0.82", pe["confianza_precio"]!!.jsonPrimitive.content)
+        val primero = pe["precio_candidatos"]!!.jsonArray.first().jsonObject
+        assertEquals(setOf("valor", "forma", "puntuacion"), primero.keys)
+        assertEquals("CENTAVOS_MISMA_LINEA", primero["forma"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun sin_confianza_ni_candidatos_no_manda_los_campos_del_precio() {
+        val d = dto() // PrecioDetectado sin confianza ni candidatos
+        assertNull(d.productoEsperado.confianzaPrecio)
+        assertNull(d.productoEsperado.precioCandidatos)
+        val pe = json(d)["producto_esperado"]!!.jsonObject
+        assertFalse("confianza_precio" in pe)
+        assertFalse("precio_candidatos" in pe)
+    }
+
+    @Test
+    fun persistencia_ida_y_vuelta_de_confianza_y_candidatos() {
+        val precio = PrecioDetectado(
+            24.9, TipoPrecio.OFERTA, true, "\$24.90", 12.0, 0.45f,
+            listOf(candidato(24.9, FormaPrecio.DECIMAL, 0.45f), candidato(25.0, FormaPrecio.ENTERO, 0.2f)),
+        )
+        val v = capturaConPrecio(precio).toEntity().toModelo()
+        assertEquals(precio, v.precio)
+    }
+
+    @Test
+    fun precio_viejo_sin_confianza_ni_candidatos_se_lee_con_defaults() {
+        val viejo = """{"valor":24.9,"tipo":"REGULAR","tienePrecioUnitario":true,"textoFuente":"$24.90"}"""
+        val m = captura().toEntity().copy(precioJson = viejo).toModelo()
+        assertEquals(24.9, m.precio.valor!!, 0.0)
+        assertNull(m.precio.confianza)
+        assertTrue(m.precio.candidatos.isEmpty())
+        assertFalse(m.precio.requiereRevision)
+    }
+
+    @Test
+    fun candidato_con_forma_desconocida_cae_a_entero() {
+        val raro = """{"valor":24.9,"candidatos":[{"valor":24.9,"forma":"NUEVA_FORMA"}]}"""
+        val m = captura().toEntity().copy(precioJson = raro).toModelo()
+        assertEquals(FormaPrecio.ENTERO, m.precio.candidatos.single().forma)
+    }
+
+    @Test
+    fun linea_ocr_conserva_la_caja_completa_y_filas_viejas_siguen_leyendose() {
+        val a = analisis(TipoFoto.ETIQUETA).copy(
+            lineasOcr = listOf(LineaOcr("\$24.90", CajaPx(30, 100, 400, 190))),
+        )
+        val v = captura(etiqueta = a).toEntity().toModelo()
+        assertEquals(CajaPx(30, 100, 400, 190), v.etiqueta.lineasOcr.single().caja)
+        val viejo = """{"tipo":"ETIQUETA","path":"/e.jpg","nitidez":1.0,"brillo":1.0,"textoOcr":"X",""" +
+            """"lineasOcr":[{"texto":"A","alturaPx":40,"top":100}]}"""
+        val m = captura().toEntity().copy(etiquetaJson = viejo).toModelo()
+        assertEquals(CajaPx(0, 100, 0, 140), m.etiqueta.lineasOcr.single().caja)
     }
 
     // -------------------------------------------------------- etiquetas_imagen

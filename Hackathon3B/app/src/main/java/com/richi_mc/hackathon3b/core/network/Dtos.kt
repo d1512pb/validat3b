@@ -56,7 +56,15 @@ data class ProductoEsperadoDto(
     /** CATALOGO | ETIQUETA_RACK | FOTO_PRODUCTO | CATEGORIA | MANUAL. */
     @SerialName("fuente_descripcion") val fuenteDescripcion: String? = null,
     @SerialName("confianza_sugerencia") val confianzaSugerencia: Double? = null,
+    /** Confianza 0..1 de la lectura del precio (PLAN3 §4); null = no calculada (no se manda). */
+    @SerialName("confianza_precio") val confianzaPrecio: Double? = null,
+    /** Los 3 mejores candidatos de precio, para que el servidor revise lecturas dudosas; null si no hay. */
+    @SerialName("precio_candidatos") val precioCandidatos: List<CandidatoPrecioDto>? = null,
 )
+
+/** Candidato de precio: `valor` y `puntuacion` con 2 decimales; `forma` = nombre de `FormaPrecio`. */
+@Serializable
+data class CandidatoPrecioDto(val valor: Double, val forma: String, val puntuacion: Double)
 
 /** Etiquetas de ML Kit Image Labeling por foto, ordenadas por confianza descendente. */
 @Serializable

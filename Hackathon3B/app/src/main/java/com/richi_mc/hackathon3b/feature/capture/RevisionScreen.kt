@@ -169,6 +169,7 @@ fun RevisionContent(
                 EsperadoCard(
                     campos = state.campos,
                     avisos = state.avisos,
+                    revisarPrecio = b.precio?.requiereRevision == true,
                     onDescripcion = onDescripcion,
                     onPrecio = onPrecio,
                     onRestaurarDescripcion = onRestaurarDescripcion,
@@ -298,6 +299,8 @@ private fun FuenteCampo(
 private fun EsperadoCard(
     campos: CamposEsperado,
     avisos: List<String>,
+    /** El precio detectado tiene confianza baja (PLAN3 §4): chip "Revisa el precio" mientras no se edite. */
+    revisarPrecio: Boolean,
     onDescripcion: (String) -> Unit,
     onPrecio: (String) -> Unit,
     onRestaurarDescripcion: () -> Unit,
@@ -335,7 +338,9 @@ private fun EsperadoCard(
             nombreCampo = "el precio",
             onRestaurar = onRestaurarPrecio,
         ) {
-            if (campos.precioDetectado != null) {
+            if (campos.precioDetectado != null && revisarPrecio && !campos.precioEditado) {
+                StatusChip("Revisa el precio", GlassRojo.warning, icon = Icons.Rounded.Warning)
+            } else if (campos.precioDetectado != null) {
                 StatusChip("Leído de la etiqueta", GlassRojo.info, icon = Icons.Rounded.Info)
             } else {
                 StatusChip("No detectado", GlassRojo.warning, icon = Icons.Rounded.Warning)
@@ -604,6 +609,24 @@ private fun RevisionOkPreview() {
 private fun RevisionEditadaPreview() {
     GlassRojoTheme {
         RevisionContent(state = estadoEjemplo(EjemplosPreview.esperadoEditado), onConfirmar = {}, onRetomar = {})
+    }
+}
+
+/** Precio con confianza baja: chip warning "Revisa el precio" en lugar de "Leído de la etiqueta". */
+@Preview(showBackground = true, backgroundColor = 0xFF020617, heightDp = 1900)
+@Composable
+private fun RevisionRevisaPrecioPreview() {
+    GlassRojoTheme {
+        RevisionContent(
+            state = estadoEjemplo(
+                EjemplosPreview.esperado,
+                BorradorCaptura(
+                    EjemplosPreview.esperado, EjemplosPreview.producto, EjemplosPreview.etiqueta,
+                    EjemplosPreview.precio.copy(confianza = 0.45f),
+                ),
+            ),
+            onConfirmar = {}, onRetomar = {},
+        )
     }
 }
 

@@ -80,7 +80,7 @@ class RevisionViewModel(private val container: AppContainer) : ViewModel() {
         val b = container.borrador.borrador.value
         val producto = b.producto ?: return
         val etiqueta = b.etiqueta ?: return
-        val precio = b.precio ?: container.priceParser.parse(etiqueta.textoOcr)
+        val precio = b.precio ?: etiqueta.precio ?: container.priceParser.parse(etiqueta.lineasOcr)
         val sugerencia = container.suggestionService.sugerir(
             producto.lineasOcr, etiqueta.lineasOcr, producto.etiquetas, precio, codigoFinal(b),
         )
@@ -131,7 +131,7 @@ class RevisionViewModel(private val container: AppContainer) : ViewModel() {
             try {
                 val repo = container.capturaRepository
                 val (esperado, sufijo) = separarSufijoForzado(s.campos.aProductoEsperado(s.borrador.productoEsperado))
-                val precio = s.borrador.precio ?: container.priceParser.parse(etiqueta.textoOcr)
+                val precio = s.borrador.precio ?: etiqueta.precio ?: container.priceParser.parse(etiqueta.lineasOcr)
                 val fecha = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
                 val consecutivo = String.format("%04d", repo.siguienteConsecutivo())
                 val id = "CAP-${sesion.cadena.codigo}-$fecha-$consecutivo${sufijo.orEmpty()}"

@@ -11,6 +11,11 @@ object Umbrales {
     /** Caracteres mínimos de OCR para no marcar SIN_TEXTO_LEGIBLE. */
     var ocrCaracteresMin = 8
     var ocrConfianzaMin = 0.5f
+    /** Confianza del precio: ≥ alta se prellena normal; entre min y alta, chip "Revisa el precio"; < min, sin precio. */
+    var confianzaPrecioAlta = 0.60f
+    var confianzaPrecioMin = 0.30f
+    /** Alto mínimo (fracción del alto de la imagen) de la línea más alta con dígitos (ETIQUETA_LEJOS). */
+    var alturaEtiquetaMin = 0.04
     /** Lado mayor y calidad JPEG al guardar fotos (recomendación del contrato). */
     const val LADO_MAYOR_PX = 1600
     const val CALIDAD_JPEG = 85

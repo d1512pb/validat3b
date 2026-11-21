@@ -9,11 +9,13 @@ import com.richi_mc.hackathon3b.core.model.ImageLabelerService
 import com.richi_mc.hackathon3b.core.model.SuggestionService
 import com.richi_mc.hackathon3b.core.model.LocationProvider
 import com.richi_mc.hackathon3b.core.model.PriceParser
+import com.richi_mc.hackathon3b.core.model.OcrEnhancer
 import com.richi_mc.hackathon3b.core.model.SessionStore
 import com.richi_mc.hackathon3b.core.data.CapturaRepositoryImpl
 import com.richi_mc.hackathon3b.core.data.Validat3BDatabase
 import com.richi_mc.hackathon3b.feature.analysis.MlKitImageAnalyzer
-import com.richi_mc.hackathon3b.feature.analysis.RegexPriceParser
+import com.richi_mc.hackathon3b.feature.analysis.enhance.MlKitOcrEnhancer
+import com.richi_mc.hackathon3b.feature.analysis.price.ScoringPriceParser
 import com.richi_mc.hackathon3b.feature.labeling.MlKitLabeler
 import com.richi_mc.hackathon3b.feature.labeling.TraduccionEtiquetas
 import com.richi_mc.hackathon3b.feature.suggestion.ReglasSuggestionService
@@ -27,6 +29,8 @@ interface AppContainer {
     val imageLabeler: ImageLabelerService
     val suggestionService: SuggestionService
     val priceParser: PriceParser
+    /** Re-OCR del recorte de la zona del precio (PLAN3 §5). */
+    val ocrEnhancer: OcrEnhancer
     val capturaRepository: CapturaRepository
     val sessionStore: SessionStore
     val locationProvider: LocationProvider
@@ -35,10 +39,11 @@ interface AppContainer {
 }
 
 class DefaultAppContainer(override val appContext: Context) : AppContainer {
-    override val priceParser: PriceParser by lazy { RegexPriceParser() }
+    override val priceParser: PriceParser by lazy { ScoringPriceParser() }
+    override val ocrEnhancer: OcrEnhancer by lazy { MlKitOcrEnhancer(appContext) }
     private val mlKitLabeler by lazy { MlKitLabeler(appContext) }
     override val imageLabeler: ImageLabelerService get() = mlKitLabeler
-    override val imageAnalyzer: ImageAnalyzer by lazy { MlKitImageAnalyzer(appContext, priceParser, mlKitLabeler) }
+    override val imageAnalyzer: ImageAnalyzer by lazy { MlKitImageAnalyzer(appContext, priceParser, mlKitLabeler, ocrEnhancer) }
     override val suggestionService: SuggestionService by lazy { ReglasSuggestionService(traducir = TraduccionEtiquetas::es) }
     override val capturaRepository: CapturaRepository by lazy {
         CapturaRepositoryImpl(appContext, Validat3BDatabase.obtener(appContext), sessionStore, ajustes)

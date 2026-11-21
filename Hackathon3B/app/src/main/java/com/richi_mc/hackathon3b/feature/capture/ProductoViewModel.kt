@@ -162,7 +162,7 @@ class ProductoViewModel(private val container: AppContainer) : ViewModel() {
         try {
             val analisis = container.imageAnalyzer.analizar(path, tipo)
             val precio = if (tipo == TipoFoto.ETIQUETA) {
-                withContext(Dispatchers.Default) { container.priceParser.parse(analisis.textoOcr) }
+                withContext(Dispatchers.Default) { analisis.precio ?: container.priceParser.parse(analisis.lineasOcr) }
             } else null
             val previo = container.borrador.borrador.value.let {
                 if (tipo == TipoFoto.PRODUCTO) it.producto else it.etiqueta

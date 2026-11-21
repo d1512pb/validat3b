@@ -7,7 +7,9 @@ import com.richi_mc.hackathon3b.core.model.EstadoEnvio
 import com.richi_mc.hackathon3b.core.model.EtiquetaImagen
 import com.richi_mc.hackathon3b.core.model.FuenteDescripcion
 import com.richi_mc.hackathon3b.core.model.ImageLabelerService
+import com.richi_mc.hackathon3b.core.model.CajaPx
 import com.richi_mc.hackathon3b.core.model.LineaOcr
+import com.richi_mc.hackathon3b.core.model.OcrEnhancer
 import com.richi_mc.hackathon3b.core.model.Sugerencia
 import com.richi_mc.hackathon3b.core.model.SuggestionService
 import com.richi_mc.hackathon3b.core.model.ImageAnalyzer
@@ -31,10 +33,14 @@ import kotlinx.coroutines.flow.update
 /** Implementaciones falsas con datos fijos, para que cada worker pruebe su pantalla aislado. */
 
 class FakePriceParser : PriceParser {
-    override fun parse(textoOcr: String) = PrecioDetectado(
+    override fun parse(lineas: List<LineaOcr>, lineasReOcr: List<LineaOcr>) = PrecioDetectado(
         valor = 24.90, tipo = TipoPrecio.REGULAR, tienePrecioUnitario = true,
         textoFuente = "\$24.90", precioUnitario = 24.90
     )
+}
+
+class FakeOcrEnhancer : OcrEnhancer {
+    override suspend fun reOcr(path: String, zona: CajaPx): List<LineaOcr> = emptyList()
 }
 
 class FakeImageAnalyzer(private val priceParser: PriceParser) : ImageAnalyzer {

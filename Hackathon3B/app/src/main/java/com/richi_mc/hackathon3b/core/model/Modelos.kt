@@ -32,6 +32,7 @@ enum class Problema(val corto: String, val mensaje: String, val bloqueante: Bool
     SIN_CODIGO_BARRAS("Sin código", "No se encontró el código de barras: gira el producto para que se vea completo."),
     CODIGO_INVALIDO("Código inválido", "El código de barras no es válido: vuelve a tomar la foto con el código derecho y nítido."),
     SIN_PRECIO("Sin precio", "No se encontró el precio en la etiqueta: encuadra la etiqueta completa."),
+    ETIQUETA_LEJOS("Muy lejos", "Acércate a la etiqueta para leer el precio.", bloqueante = false),
     SIN_PRECIO_UNITARIO("Sin precio unitario", "No se ve el precio unitario (por kg / por litro). El servidor decidirá.", bloqueante = false),
     PRODUCTO_NO_VISIBLE("Sin producto", "No se ve un producto en la foto: encuadra el producto completo y de frente."),
     FACHADA_NO_PARECE_TIENDA("¿Fachada?", "La foto no parece la fachada de una tienda: incluye el letrero y la entrada.", bloqueante = false),
@@ -78,6 +79,8 @@ data class AnalisisImagen(
     val etiquetas: List<EtiquetaImagen> = emptyList(),
     /** Líneas del OCR con su altura (px del bitmap analizado) y posición vertical. */
     val lineasOcr: List<LineaOcr> = emptyList(),
+    /** Precio leído (solo etiqueta; incluye el re-OCR del recorte si hizo falta). No se persiste aquí. */
+    val precio: PrecioDetectado? = null,
 ) {
     val esValida get() = problemas.isEmpty()
     val tieneBloqueantes get() = problemas.any { it.bloqueante }
@@ -89,6 +92,42 @@ data class PrecioDetectado(
     val tienePrecioUnitario: Boolean,
     val textoFuente: String,
     val precioUnitario: Double? = null,
+    /**
+     * Confianza 0..1 del precio (puntuación del ganador, PLAN3 §4). null = no calculada
+     * (fakes, capturas guardadas antes del Plan 3): la UI la trata como alta.
+     */
+    val confianza: Float? = null,
+    /** Los 3 mejores candidatos, para depurar y auditar (van al JSON como `precio_candidatos`). */
+    val candidatos: List<CandidatoPrecio> = emptyList(),
+) {
+    /** true si hay precio pero la confianza no llega a [Umbrales.confianzaPrecioAlta]: mostrar "Revisa el precio". */
+    val requiereRevision: Boolean
+        get() = valor != null && confianza != null && confianza < Umbrales.confianzaPrecioAlta
+}
+
+/** Caja en px de la imagen analizada (ya rotada). */
+data class CajaPx(val left: Int, val top: Int, val right: Int, val bottom: Int) {
+    val alto: Int get() = bottom - top
+    val ancho: Int get() = right - left
+}
+
+/** Palabra del OCR (ML Kit `Text.Element`) con las cajas de sus caracteres (`Text.Symbol`). */
+data class ElementoOcr(val texto: String, val caja: CajaPx, val simbolos: List<CajaPx> = emptyList())
+
+/** Forma en que se leyó un precio candidato (PLAN3 §3). */
+enum class FormaPrecio { DECIMAL, CENTAVOS_MISMA_LINEA, CENTAVOS_PEGADOS, CENTAVOS_OTRA_LINEA, ENTERO }
+
+data class CandidatoPrecio(
+    val valor: Double,
+    val forma: FormaPrecio,
+    val textoFuente: String,
+    val caja: CajaPx,
+    /** Altura del entero / altura de la línea más alta de la etiqueta (0..1). */
+    val alturaRelativa: Float,
+    val tieneSigno: Boolean,
+    val esUnitario: Boolean,
+    val esAnterior: Boolean,
+    val puntuacion: Float = 0f,
 )
 
 /** Lo que el capturista dice estar fotografiando (contrato: `producto_esperado`). */
@@ -113,8 +152,17 @@ data class ProductoEsperado(
 /** Etiqueta de ML Kit Image Labeling (texto en inglés del modelo base). */
 data class EtiquetaImagen(val texto: String, val confianza: Float, val indice: Int)
 
-/** Línea del OCR: [alturaPx] = alto del boundingBox; [top] = borde superior (px). */
-data class LineaOcr(val texto: String, val alturaPx: Int, val top: Int)
+/**
+ * Línea del OCR (ML Kit `Text.Line`) con su caja y sus elementos, en px de la imagen analizada.
+ * [elementos] puede venir vacío (capturas viejas, fakes): el parser tokeniza [texto] entonces.
+ */
+data class LineaOcr(val texto: String, val caja: CajaPx, val elementos: List<ElementoOcr> = emptyList()) {
+    /** Compatibilidad con el Plan 2: solo altura y borde superior. */
+    constructor(texto: String, alturaPx: Int, top: Int) : this(texto, CajaPx(0, top, 0, top + alturaPx))
+
+    val alturaPx: Int get() = caja.alto
+    val top: Int get() = caja.top
+}
 
 /** De dónde salió la descripción sugerida. */
 enum class FuenteDescripcion { CATALOGO, ETIQUETA_RACK, FOTO_PRODUCTO, CATEGORIA, MANUAL }

@@ -10,11 +10,14 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
 import com.richi_mc.hackathon3b.core.model.AnalisisImagen
+import com.richi_mc.hackathon3b.core.model.CajaPx
 import com.richi_mc.hackathon3b.core.model.Cadena
+import com.richi_mc.hackathon3b.core.model.CandidatoPrecio
 import com.richi_mc.hackathon3b.core.model.Captura
 import com.richi_mc.hackathon3b.core.model.CodigoEscaneado
 import com.richi_mc.hackathon3b.core.model.EstadoEnvio
 import com.richi_mc.hackathon3b.core.model.EtiquetaImagen
+import com.richi_mc.hackathon3b.core.model.FormaPrecio
 import com.richi_mc.hackathon3b.core.model.FuenteDescripcion
 import com.richi_mc.hackathon3b.core.model.LineaOcr
 import com.richi_mc.hackathon3b.core.model.PrecioDetectado
@@ -152,7 +155,14 @@ internal data class AnalisisJson(
 internal data class EtiquetaJson(val texto: String, val confianza: Float = 0f, val indice: Int = 0)
 
 @Serializable
-internal data class LineaOcrJson(val texto: String, val alturaPx: Int = 0, val top: Int = 0)
+internal data class LineaOcrJson(
+    val texto: String,
+    val alturaPx: Int = 0,
+    val top: Int = 0,
+    // Plan 3: caja completa; con default para filas viejas. No se persisten elementos ni símbolos.
+    val left: Int = 0,
+    val right: Int = 0,
+)
 
 @Serializable
 internal data class PrecioJson(
@@ -161,6 +171,26 @@ internal data class PrecioJson(
     val tienePrecioUnitario: Boolean = false,
     val textoFuente: String = "",
     val precioUnitario: Double? = null,
+    // Plan 3: con default para filas viejas (confianza null = no calculada).
+    val confianza: Float? = null,
+    val candidatos: List<CandidatoJson> = emptyList(),
+)
+
+/** Con `coerceInputValues`, una [forma] desconocida cae a ENTERO en vez de romper la lectura. */
+@Serializable
+internal data class CandidatoJson(
+    val valor: Double = 0.0,
+    val forma: FormaPrecio = FormaPrecio.ENTERO,
+    val textoFuente: String = "",
+    val left: Int = 0,
+    val top: Int = 0,
+    val right: Int = 0,
+    val bottom: Int = 0,
+    val alturaRelativa: Float = 0f,
+    val tieneSigno: Boolean = false,
+    val esUnitario: Boolean = false,
+    val esAnterior: Boolean = false,
+    val puntuacion: Float = 0f,
 )
 
 @Serializable
@@ -203,7 +233,7 @@ internal fun AnalisisImagen.toJson() = JsonDb.encodeToString(
     AnalisisJson(
         tipo, path, nitidez, brillo, textoOcr, confianzaOcr, codigoBarras, formatoCodigo, areaCodigo, problemas,
         etiquetas = etiquetas.map { EtiquetaJson(it.texto, it.confianza, it.indice) },
-        lineasOcr = lineasOcr.map { LineaOcrJson(it.texto, it.alturaPx, it.top) },
+        lineasOcr = lineasOcr.map { LineaOcrJson(it.texto, it.alturaPx, it.top, it.caja.left, it.caja.right) },
     )
 )
 
@@ -212,16 +242,34 @@ internal fun analisisDeJson(s: String): AnalisisImagen = JsonDb.decodeFromString
         it.tipo, it.path, it.nitidez, it.brillo, it.textoOcr, it.confianzaOcr,
         it.codigoBarras, it.formatoCodigo, it.areaCodigo, it.problemas,
         etiquetas = it.etiquetas.map { e -> EtiquetaImagen(e.texto, e.confianza, e.indice) },
-        lineasOcr = it.lineasOcr.map { l -> LineaOcr(l.texto, l.alturaPx, l.top) },
+        lineasOcr = it.lineasOcr.map { l -> LineaOcr(l.texto, CajaPx(l.left, l.top, l.right, l.top + l.alturaPx)) },
     )
 }
 
 internal fun PrecioDetectado.toJson() = JsonDb.encodeToString(
-    PrecioJson.serializer(), PrecioJson(valor, tipo, tienePrecioUnitario, textoFuente, precioUnitario)
+    PrecioJson.serializer(),
+    PrecioJson(
+        valor, tipo, tienePrecioUnitario, textoFuente, precioUnitario, confianza,
+        candidatos.map {
+            CandidatoJson(
+                it.valor, it.forma, it.textoFuente,
+                it.caja.left, it.caja.top, it.caja.right, it.caja.bottom,
+                it.alturaRelativa, it.tieneSigno, it.esUnitario, it.esAnterior, it.puntuacion,
+            )
+        },
+    )
 )
 
 internal fun precioDeJson(s: String): PrecioDetectado = JsonDb.decodeFromString(PrecioJson.serializer(), s).let {
-    PrecioDetectado(it.valor, it.tipo, it.tienePrecioUnitario, it.textoFuente, it.precioUnitario)
+    PrecioDetectado(
+        it.valor, it.tipo, it.tienePrecioUnitario, it.textoFuente, it.precioUnitario, it.confianza,
+        it.candidatos.map { c ->
+            CandidatoPrecio(
+                c.valor, c.forma, c.textoFuente, CajaPx(c.left, c.top, c.right, c.bottom),
+                c.alturaRelativa, c.tieneSigno, c.esUnitario, c.esAnterior, c.puntuacion,
+            )
+        },
+    )
 }
 
 internal fun ResultadoServidor.toJson() = JsonDb.encodeToString(

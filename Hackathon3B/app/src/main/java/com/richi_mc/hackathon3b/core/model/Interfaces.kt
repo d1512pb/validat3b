@@ -25,8 +25,18 @@ interface SuggestionService {
     ): Sugerencia
 }
 
+/** Lee el precio de las líneas OCR de una etiqueta (con geometría). Kotlin puro. */
 interface PriceParser {
-    fun parse(textoOcr: String): PrecioDetectado
+    fun parse(lineas: List<LineaOcr>): PrecioDetectado = parse(lineas, emptyList())
+
+    /** [lineasReOcr]: líneas del recorte mejorado ([OcrEnhancer]), ya en coordenadas de la imagen completa. */
+    fun parse(lineas: List<LineaOcr>, lineasReOcr: List<LineaOcr>): PrecioDetectado
+}
+
+/** Re-OCR de una zona de la foto guardada, ampliada y con más contraste (PLAN3 §5). */
+interface OcrEnhancer {
+    /** Líneas leídas en [zona], con cajas en coordenadas de la imagen completa; vacío si falla. */
+    suspend fun reOcr(path: String, zona: CajaPx): List<LineaOcr>
 }
 
 interface CapturaRepository {
