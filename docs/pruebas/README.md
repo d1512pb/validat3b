@@ -235,3 +235,8 @@ El servidor en línea y la v2 del lote son el mismo motor y coinciden en 45 de 5
 - **Qué cambia:** cuando la captura es lejana o borrosa, la explicación ahora dice qué foto tiene el problema, por ejemplo «Foto de la etiqueta lejana: la etiqueta ocupa 30% del ancho de su foto…» o «Foto del producto borrosa (nitidez 0.5 de 1)». La validación que falla es la de esa foto: `producto` o `evidencia_precio`.
 - **Qué no cambia:** la v3 tiene exactamente las mismas decisiones, motivos y precios que la v2. Cambian 18 explicaciones y 10 validaciones.
 - **Es el JSON recomendado para entregar:** `datos/entregas/validat3b_v3.json`.
+
+### JSON final: códigos de barras válidos
+- **El hallazgo:** las etiquetas de Walmart y Bodega Aurrerá imprimen el código con **0 en lugar del dígito verificador**: la etiqueta dice 7501791668870 y la lata 7501791668873. La IA transcribía lo de la etiqueta y reportaba un código inválido.
+- **El arreglo:** un código transcrito por la IA solo se reporta si es un GTIN válido. Si termina en 0 y no es válido, se recalcula el dígito verificador.
+- **El resultado:** se corrigen 3 códigos y los 3 quedan iguales al esperado. Todo lo demás es idéntico a la v3. Archivo para entregar: `datos/entregas/validat3b_final.json`.

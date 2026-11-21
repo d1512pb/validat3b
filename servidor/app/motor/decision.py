@@ -151,6 +151,29 @@ def principal(fallas: list[Falla]) -> Falla | None:
     return max(fallas, key=lambda x: (round(x.severidad, 3), -PRIORIDAD_FRENTE[FRENTE[x.codigo]]))
 
 
+def _digito_verificador(base: str) -> int:
+    s = sum(int(d) * (3 if i % 2 == 0 else 1) for i, d in enumerate(reversed(base)))
+    return (10 - s % 10) % 10
+
+
+def codigo_de_ia(texto: str | None) -> str | None:
+    """El código que transcribe la IA solo se reporta si es un GTIN válido.
+
+    Las etiquetas de Walmart y Bodega Aurrerá imprimen el código con 0 en lugar del dígito verificador
+    (7501791668870 por 7501791668873): en ese caso se recalcula el dígito verificador.
+    """
+    cod = normalizar_codigo(texto) if texto else None
+    if not cod or not cod.isdigit():
+        return None
+    if gtin_valido(cod):
+        return cod
+    if cod.endswith("0") and len(cod) in (8, 12, 13, 14):
+        candidato = cod[:-1] + str(_digito_verificador(cod[:-1]))
+        if gtin_valido(candidato):
+            return candidato
+    return None
+
+
 def fotos_con_problema(codigo: str, a: AnalisisIA) -> list[str]:
     """Qué foto (producto o etiqueta) tiene el problema de calidad, con lo que el modelo midió de cada una."""
     tam_etiqueta = getattr(a, "tamano_etiqueta", None)
@@ -243,7 +266,7 @@ def resultado(c: CapturaEntrada, ev: Evaluacion, a: AnalisisIA | None) -> tuple[
             explicacion = "La evidencia no alcanza la confianza necesaria para aprobar."
         if decision == Decision.revision_manual:
             explicacion = f"Revisión manual: {explicacion}"
-    codigo = ev.codigo_detectado or (a.codigo_barras_leido if a else None)
+    codigo = ev.codigo_detectado or (codigo_de_ia(a.codigo_barras_leido) if a else None)
     oficial = ResultadoOficial(
         capture_id=c.capture_id,
         decision=decision,

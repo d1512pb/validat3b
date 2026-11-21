@@ -196,6 +196,13 @@ def test_explicacion_dice_que_foto_tiene_el_problema():
     assert dec.detalle_foto("IMAGEN_BORROSA", borrosa) == "Foto del producto borrosa (nitidez 0.3 de 1)."
 
 
+def test_codigo_de_ia_solo_valido_y_corrige_cero_de_etiqueta():
+    from app.motor import decision as dec
+    assert dec.codigo_de_ia("7501791668870") == "7501791668873"   # etiqueta con 0 en lugar del verificador
+    assert dec.codigo_de_ia("7501791668873") == "7501791668873"
+    assert dec.codigo_de_ia("7501791668871") is None and dec.codigo_de_ia(None) is None
+
+
 def test_fachada_no_solo_con_evidencia():
     sin_letrero = ia.normalizar_fachada(analisis(fachada_coincide="no", cadena_en_fachada=None), "Soriana")
     otra = ia.normalizar_fachada(analisis(fachada_coincide="no", cadena_en_fachada="OXXO"), "Soriana")
