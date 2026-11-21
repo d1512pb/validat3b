@@ -10,6 +10,8 @@ import com.richi_mc.hackathon3b.core.model.BorradorCaptura
 import com.richi_mc.hackathon3b.core.model.AnalisisImagen
 import com.richi_mc.hackathon3b.core.model.Captura
 import com.richi_mc.hackathon3b.core.model.CodigoEscaneado
+import com.richi_mc.hackathon3b.core.model.ConfiabilidadLocal
+import com.richi_mc.hackathon3b.core.model.IndiceConfiabilidad
 import com.richi_mc.hackathon3b.core.model.PrecioDetectado
 import com.richi_mc.hackathon3b.core.model.Sesion
 import java.time.LocalDate
@@ -48,6 +50,22 @@ data class RevisionUiState(
     val avisos: List<String>
         get() = buildList {
             if (campos.precio == null) add("Sin precio: el servidor verá que no hay etiqueta de precio.")
+        }
+
+    /**
+     * Índice de confiabilidad local; null mientras la captura esté bloqueada o falten
+     * producto, etiqueta o precio.
+     */
+    val indice: IndiceConfiabilidad?
+        get() {
+            if (motivosBloqueoBorrador(borrador).isNotEmpty()) return null
+            val producto = borrador.producto ?: return null
+            val etiqueta = borrador.etiqueta ?: return null
+            val precio = borrador.precio ?: etiqueta.precio ?: return null
+            return ConfiabilidadLocal.calcular(
+                sesion?.fachadaAnalisis, producto, etiqueta, precio,
+                borrador.codigoEscaneado?.checksumOk == true,
+            )
         }
 
     val puedeConfirmar get() = motivosBloqueo.isEmpty() && !confirmando
@@ -97,13 +115,6 @@ class RevisionViewModel(private val container: AppContainer) : ViewModel() {
     fun cambiarPrecio(t: String) { campos = campos.conPrecio(t); guardarEnBorrador() }
     fun restaurarDescripcion() { campos = campos.restaurarDescripcion(); guardarEnBorrador() }
     fun restaurarPrecio() { campos = campos.restaurarPrecio(); guardarEnBorrador() }
-
-    fun cambiarCodigoCatalogo(t: String) {
-        campos = campos.copy(codigoCatalogo = t.filter { it.isDigit() })
-        guardarEnBorrador()
-    }
-
-    fun cambiarContratipo(es: Boolean) { campos = campos.copy(esContratipo = es); guardarEnBorrador() }
 
     private val local = MutableStateFlow(Pair(false, null as String?))
 

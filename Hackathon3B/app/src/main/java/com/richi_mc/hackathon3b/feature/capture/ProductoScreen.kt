@@ -432,8 +432,7 @@ private fun CodigoCard(
     val codFoto = borrador.producto?.codigoBarras
     val sinFoto = borrador.producto == null
     val atenuada = sinFoto && escaneado == null
-    val codCatalogo = borrador.productoEsperado.codigoBarras?.takeIf { it.isNotBlank() }
-    val final = codigoFinal(borrador)
+    val leidoEnFoto = codFoto != null && !borrador.requiereEscaneo
 
     GlassCard(Modifier.fillMaxWidth().alpha(if (atenuada) 0.6f else 1f)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -448,7 +447,8 @@ private fun CodigoCard(
             Column(Modifier.weight(1f)) {
                 Text("2. Código de barras", style = Glass.type.title)
                 Text(
-                    "Escanéalo del producto o del empaque",
+                    if (leidoEnFoto && escaneado == null) "Listo: se leyó en la foto"
+                    else "Escanéalo del producto o del empaque",
                     style = Glass.type.secondary, color = GlassRojo.inkSecondary,
                 )
             }
@@ -485,6 +485,9 @@ private fun CodigoCard(
                 Spacer(Modifier.height(GlassDimens.s8))
                 CodigoChips {
                     StatusChip("Código leído en la foto", GlassRojo.success, icon = Icons.Rounded.CheckCircle)
+                    if (Problema.DEMASIADO_LEJOS in (borrador.producto?.problemas ?: emptyList())) {
+                        StatusChip("Código pequeño", GlassRojo.warning, icon = Icons.Rounded.Warning)
+                    }
                 }
             }
             borrador.requiereEscaneo -> Row(verticalAlignment = Alignment.Top) {
@@ -508,22 +511,11 @@ private fun CodigoCard(
             }
         }
 
-        if (codCatalogo != null && final != null) {
-            Spacer(Modifier.height(GlassDimens.s8))
-            CodigoChips {
-                if (mismoCodigo(final, codCatalogo)) {
-                    StatusChip("Coincide con el catálogo", GlassRojo.success, icon = Icons.Rounded.CheckCircle)
-                } else {
-                    StatusChip("No coincide con el catálogo", GlassRojo.warning, icon = Icons.Rounded.Warning)
-                }
-            }
-        }
-
         Spacer(Modifier.height(GlassDimens.s12))
         GlassButton(
             text = when {
                 escaneado != null -> "Volver a escanear"
-                codFoto != null && !borrador.requiereEscaneo -> "Escanear de todos modos"
+                codFoto != null && !borrador.requiereEscaneo -> "Escanear (opcional)"
                 else -> "Escanear código"
             },
             onClick = onEscanear,

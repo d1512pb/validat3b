@@ -64,19 +64,22 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.richi_mc.hackathon3b.app.AppContainer
 import com.richi_mc.hackathon3b.core.model.AnalisisImagen
+import com.richi_mc.hackathon3b.core.model.BandaIcl
 import com.richi_mc.hackathon3b.core.model.BorradorCaptura
 import com.richi_mc.hackathon3b.core.model.FuenteDescripcion
+import com.richi_mc.hackathon3b.core.model.IndiceConfiabilidad
 import com.richi_mc.hackathon3b.core.model.PrecioDetectado
 import com.richi_mc.hackathon3b.core.model.Problema
+import com.richi_mc.hackathon3b.core.model.TipoFoto
 import com.richi_mc.hackathon3b.core.model.TipoPrecio
 import com.richi_mc.hackathon3b.ui.components.CircleIconButton
 import com.richi_mc.hackathon3b.ui.components.GlassBackground
 import com.richi_mc.hackathon3b.ui.components.GlassButton
 import com.richi_mc.hackathon3b.ui.components.GlassCard
+import com.richi_mc.hackathon3b.ui.components.GlassProgressBar
 import com.richi_mc.hackathon3b.ui.components.GlassTextField
 import com.richi_mc.hackathon3b.ui.components.LocalHazeState
 import com.richi_mc.hackathon3b.ui.components.PrimaryButton
-import com.richi_mc.hackathon3b.ui.components.SegmentedControl
 import com.richi_mc.hackathon3b.ui.components.StatusChip
 import com.richi_mc.hackathon3b.ui.components.glassSurface
 import com.richi_mc.hackathon3b.feature.labeling.EtiquetaChips
@@ -103,8 +106,6 @@ fun RevisionScreen(
         onPrecio = vm::cambiarPrecio,
         onRestaurarDescripcion = vm::restaurarDescripcion,
         onRestaurarPrecio = vm::restaurarPrecio,
-        onCodigoCatalogo = vm::cambiarCodigoCatalogo,
-        onContratipo = vm::cambiarContratipo,
     )
 }
 
@@ -117,8 +118,6 @@ fun RevisionContent(
     onPrecio: (String) -> Unit = {},
     onRestaurarDescripcion: () -> Unit = {},
     onRestaurarPrecio: () -> Unit = {},
-    onCodigoCatalogo: (String) -> Unit = {},
-    onContratipo: (Boolean) -> Unit = {},
 ) {
     var verTexto by rememberSaveable { mutableStateOf(false) }
     val b = state.borrador
@@ -174,10 +173,9 @@ fun RevisionContent(
                     onPrecio = onPrecio,
                     onRestaurarDescripcion = onRestaurarDescripcion,
                     onRestaurarPrecio = onRestaurarPrecio,
-                    onCodigoCatalogo = onCodigoCatalogo,
-                    onContratipo = onContratipo,
                 )
                 DatosCard(b, onVerTexto = { verTexto = true })
+                ConfiabilidadCard(state.indice)
             }
 
             Column(
@@ -305,8 +303,6 @@ private fun EsperadoCard(
     onPrecio: (String) -> Unit,
     onRestaurarDescripcion: () -> Unit,
     onRestaurarPrecio: () -> Unit,
-    onCodigoCatalogo: (String) -> Unit,
-    onContratipo: (Boolean) -> Unit,
 ) {
     GlassCard(Modifier.fillMaxWidth()) {
         Text("PRODUCTO ESPERADO", style = Glass.type.label)
@@ -358,23 +354,6 @@ private fun EsperadoCard(
             }
         }
 
-        Spacer(Modifier.height(GlassDimens.s16))
-        GlassTextField(
-            value = campos.codigoCatalogo,
-            onValueChange = onCodigoCatalogo,
-            label = "Código de barras del catálogo",
-            placeholder = "Solo números (opcional)",
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        )
-        Spacer(Modifier.height(GlassDimens.s12))
-        Text("Es contratipo", style = Glass.type.secondary, color = GlassRojo.inkSecondary)
-        Spacer(Modifier.height(6.dp))
-        SegmentedControl(
-            options = listOf(true, false),
-            selected = campos.esContratipo,
-            label = { if (it) "Sí" else "No" },
-            onSelect = onContratipo,
-        )
     }
 }
 
@@ -422,7 +401,6 @@ private fun CampoPrecio(valor: String, onValor: (String) -> Unit) {
 private fun DatosCard(b: BorradorCaptura, onVerTexto: () -> Unit) {
     val codProducto = b.producto?.codigoBarras
     val codEtiqueta = b.etiqueta?.codigoBarras
-    val codCatalogo = b.productoEsperado.codigoBarras?.takeIf { it.isNotBlank() }
     val precio: PrecioDetectado? = b.precio
 
     GlassCard(Modifier.fillMaxWidth()) {
@@ -486,20 +464,6 @@ private fun DatosCard(b: BorradorCaptura, onVerTexto: () -> Unit) {
                 }
             }
 
-            if (codCatalogo != null) {
-                Dato("Código del catálogo", codCatalogo) {
-                    val final = codigoFinal(b)
-                    when {
-                        final == null ->
-                            StatusChip("No se pudo comparar", GlassRojo.warning, icon = Icons.Rounded.Warning)
-                        mismoCodigo(final, codCatalogo) ->
-                            StatusChip("Coincide con el catálogo", GlassRojo.success, icon = Icons.Rounded.CheckCircle)
-                        else ->
-                            StatusChip("No coincide con el catálogo", GlassRojo.warning, icon = Icons.Rounded.Warning)
-                    }
-                }
-            }
-
             Dato("Precio", formatoPrecio(precio?.valor) ?: "No detectado") {
                 if (precio?.valor == null) StatusChip("Sin precio", GlassRojo.danger, icon = Icons.Rounded.ErrorOutline)
             }
@@ -525,6 +489,83 @@ private fun DatosCard(b: BorradorCaptura, onVerTexto: () -> Unit) {
             }
             GlassButton("Ver texto leído", onVerTexto, icon = Icons.AutoMirrored.Rounded.Notes)
         }
+    }
+}
+
+@Composable
+private fun ConfiabilidadCard(indice: IndiceConfiabilidad?) {
+    GlassCard(Modifier.fillMaxWidth()) {
+        Text("CONFIABILIDAD LOCAL", style = Glass.type.label)
+        Text(
+            "Qué tan legible es la evidencia y qué tan bien se leyó el precio.",
+            style = Glass.type.secondary, color = GlassRojo.inkMuted,
+        )
+        Spacer(Modifier.height(GlassDimens.s12))
+        if (indice == null) {
+            Text(
+                "Se calcula cuando la captura pase los chequeos.",
+                style = Glass.type.secondary, color = GlassRojo.inkMuted,
+            )
+            return@GlassCard
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${Math.round(indice.icl * 100)} %", style = Glass.type.display)
+            Spacer(Modifier.width(GlassDimens.s12))
+            when (indice.banda) {
+                BandaIcl.ALTA ->
+                    StatusChip("Alta · análisis rápido", GlassRojo.success, icon = Icons.Rounded.CheckCircle)
+                BandaIcl.MEDIA ->
+                    StatusChip("Media · análisis profundo", GlassRojo.warning, icon = Icons.Rounded.Info)
+                BandaIcl.BAJA ->
+                    StatusChip("Baja · evidencia débil", GlassRojo.danger, icon = Icons.Rounded.ErrorOutline)
+            }
+        }
+        Spacer(Modifier.height(GlassDimens.s12))
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            SubpuntajeFila("Nitidez", indice.n)
+            SubpuntajeFila("Distancia", indice.d)
+            SubpuntajeFila("Texto legible (OCR)", indice.o)
+            SubpuntajeFila("Precio leído", indice.p)
+            SubpuntajeFila("Tipo de precio", indice.t)
+        }
+        val retomar = indice.masDebil?.takeIf { indice.banda == BandaIcl.BAJA }?.let {
+            when (it) {
+                TipoFoto.ETIQUETA -> "de la etiqueta"
+                TipoFoto.PRODUCTO -> "del producto"
+                TipoFoto.FACHADA -> "de la fachada"
+            }
+        }
+        if (retomar != null) {
+            Spacer(Modifier.height(GlassDimens.s12))
+            Row(verticalAlignment = Alignment.Top) {
+                Icon(
+                    Icons.Rounded.Warning, contentDescription = null,
+                    tint = GlassRojo.warning, modifier = Modifier.padding(top = 2.dp).size(16.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "Conviene retomar la foto $retomar",
+                    style = Glass.type.secondary, color = GlassRojo.warning,
+                )
+            }
+        }
+        Spacer(Modifier.height(GlassDimens.s12))
+        Text(
+            "No valida que sea el producto correcto; eso lo decide el servidor.",
+            style = Glass.type.secondary, color = GlassRojo.inkMuted,
+        )
+    }
+}
+
+@Composable
+private fun SubpuntajeFila(nombre: String, valor: Double) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(nombre, style = Glass.type.secondary, color = GlassRojo.inkSecondary, modifier = Modifier.weight(1f))
+            Text("${Math.round(valor * 100)} %", style = Glass.type.secondary, color = GlassRojo.inkSecondary)
+        }
+        Spacer(Modifier.height(4.dp))
+        GlassProgressBar(valor.toFloat())
     }
 }
 

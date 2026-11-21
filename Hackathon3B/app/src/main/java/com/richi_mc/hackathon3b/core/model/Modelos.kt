@@ -27,7 +27,11 @@ enum class Problema(val corto: String, val mensaje: String, val bloqueante: Bool
     BORROSA("Borrosa", "Foto borrosa: sostén el teléfono firme, acércate y toca para enfocar."),
     OSCURA("Oscura", "Foto muy oscura: busca más luz o enciende el flash."),
     SOBREEXPUESTA("Sobreexpuesta", "Foto con demasiada luz: evita reflejos y apaga el flash."),
-    DEMASIADO_LEJOS("Muy lejos", "El código se ve muy pequeño: acércate al producto."),
+    /** Solo se marca cuando el código se leyó con checksum válido: avisa, pero el código ya cuenta. */
+    DEMASIADO_LEJOS(
+        "Código pequeño", "El código se ve pequeño; se leyó bien, pero acércate la próxima vez.",
+        bloqueante = false,
+    ),
     SIN_TEXTO_LEGIBLE("Sin texto", "No se pudo leer texto: acércate y enfoca la etiqueta."),
     SIN_CODIGO_BARRAS("Sin código", "No se encontró el código de barras: gira el producto para que se vea completo."),
     CODIGO_INVALIDO("Código inválido", "El código de barras no es válido: vuelve a tomar la foto con el código derecho y nítido."),

@@ -3,8 +3,10 @@ package com.richi_mc.hackathon3b.core.network
 import android.os.Build
 import com.richi_mc.hackathon3b.BuildConfig
 import com.richi_mc.hackathon3b.core.model.AnalisisImagen
+import com.richi_mc.hackathon3b.core.model.BandaIcl
 import com.richi_mc.hackathon3b.core.model.Captura
 import com.richi_mc.hackathon3b.core.model.CodigoEscaneado
+import com.richi_mc.hackathon3b.core.model.ConfiabilidadLocal
 import com.richi_mc.hackathon3b.core.model.Decision
 import com.richi_mc.hackathon3b.core.model.EtiquetaImagen
 import com.richi_mc.hackathon3b.core.model.Problema
@@ -196,6 +198,7 @@ object CapturaMapper {
         lista += distancia(c.producto, escaneadoValido = escaneado?.checksumOk == true)
         lista += etiquetaPresente(c.etiqueta)
         lista += precioLeido(c)
+        confiabilidadLocal(c, s)?.let { lista += it }
 
         // Chequeos por etiquetas de imagen: solo para las fotos que tienen etiquetas.
         s.fachadaAnalisis?.let { lista += fachadaTienda(it) }
@@ -225,6 +228,26 @@ object CapturaMapper {
             )
         }
         return lista
+    }
+
+    /**
+     * Índice de confiabilidad local (metodologia.md §7). El servidor lo usa para elegir la capa
+     * `rapido` (banda alta) o `fuerte`; no aprueba ni rechaza por sí solo, por eso nunca es FALLA.
+     */
+    internal fun confiabilidadLocal(c: Captura, s: Sesion): ChequeoLocalDto? {
+        val i = ConfiabilidadLocal.calcular(
+            s.fachadaAnalisis, c.producto, c.etiqueta, c.precio,
+            escaneoValido = c.codigoEscaneado?.checksumOk == true,
+        ) ?: return null
+        return ChequeoLocalDto(
+            nombre = "confiabilidad_local",
+            foto = null,
+            resultado = if (i.banda == BandaIcl.ALTA) OK else DUDA,
+            puntaje = i.icl,
+            valor = i.banda.name.lowercase(Locale.ROOT),
+            detalle = "N=${num(i.n, 3)}; D=${num(i.d, 3)}; O=${num(i.o, 3)}; P=${num(i.p, 3)}; T=${num(i.t, 3)}" +
+                (i.masDebil?.let { "; mas_debil=${it.contrato}" } ?: ""),
+        )
     }
 
     private fun nitidez(a: AnalisisImagen): ChequeoLocalDto {

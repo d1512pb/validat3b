@@ -22,8 +22,6 @@ data class CamposEsperado(
     /** Fuente de la descripción detectada; null si no se detectó nada. */
     val fuente: FuenteDescripcion? = null,
     val confianza: Float? = null,
-    val codigoCatalogo: String = "",
-    val esContratipo: Boolean = false,
 ) {
     val precio: Double? get() = parsearPrecio(precioTexto)
 
@@ -64,8 +62,6 @@ data class CamposEsperado(
     /** Producto esperado para el borrador / la captura; conserva sku, marca y contenido de [base]. */
     fun aProductoEsperado(base: ProductoEsperado = ProductoEsperado()) = base.copy(
         descripcion = descripcion.trim().ifBlank { null },
-        codigoBarras = codigoCatalogo.ifBlank { null },
-        esContratipo = esContratipo,
         precio = precio,
         descripcionDetectada = descripcionDetectada,
         precioDetectado = precioDetectado,
@@ -86,8 +82,6 @@ data class CamposEsperado(
             precioDetectado = pe.precioDetectado,
             fuente = pe.fuente?.takeIf { pe.descripcionDetectada != null && it != FuenteDescripcion.MANUAL },
             confianza = pe.confianzaSugerencia,
-            codigoCatalogo = pe.codigoBarras.orEmpty(),
-            esContratipo = pe.esContratipo,
         )
 
         /** Mayúsculas, sin saltos de línea, máximo [MAX_DESCRIPCION] caracteres. */

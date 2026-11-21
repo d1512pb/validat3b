@@ -97,8 +97,9 @@ class CamposEsperadoTest {
     @Test
     fun confirmar_arma_el_producto_con_final_detectado_y_fuente() {
         val c = prellenado.conDescripcion("Leche entera 1 L").conPrecio("25.5")
-            .copy(codigoCatalogo = "7501055363056", esContratipo = true)
-        val pe = c.aProductoEsperado(ProductoEsperado(sku = "S1", marca = "Lala"))
+        val pe = c.aProductoEsperado(
+            ProductoEsperado(sku = "S1", marca = "Lala", codigoBarras = "7501055363056", esContratipo = true),
+        )
         assertEquals("LECHE ENTERA 1 L", pe.descripcion)
         assertEquals(25.5, pe.precio!!, 0.0)
         assertEquals("LECHE ENTERA 1L", pe.descripcionDetectada)

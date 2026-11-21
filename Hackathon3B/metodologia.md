@@ -30,6 +30,7 @@ Usa cinco parámetros que la app ya calcula, así que no hace falta capturar nad
 - **Dato:** `AnalisisImagen.areaCodigo`, la fracción de la imagen que ocupa el código de barras. Umbral: `Umbrales.areaCodigoMin = 0.02`.
 - **Puntaje:** `clamp(areaCodigo / 0.04)`. Con 2 % vale 0.5; con 4 % o más vale 1.
 - **Sin código en la foto pero con escaneo válido en vivo:** D = 0.5. Se sabe qué producto es, pero no qué tan cerca se tomó la foto.
+- **Código pequeño (`DEMASIADO_LEJOS`):** ya no bloquea, porque solo se marca cuando el código se leyó con checksum válido. D queda por debajo de 0.5 (con 1 % vale 0.25). Si además hay escaneo válido, D no baja de 0.5.
 
 ### O: OCR (producto y etiqueta)
 
@@ -45,7 +46,7 @@ Usa cinco parámetros que la app ya calcula, así que no hace falta capturar nad
 - **Base:**
   - **1.0:** se encontró precio con signo `$` (el `textoFuente` lo contiene).
   - **0.8:** precio sin `$`.
-  - **0.6:** el parser no encontró precio principal y tomó el unitario. En el código pasa cuando `elegirPrincipal` regresa null; queda `valor == precioUnitario`.
+  - **0.6:** el parser no encontró precio principal y tomó el unitario. En el código se detecta porque el candidato ganador (`candidatos.first()`) tiene `esUnitario`. No se usa `valor == precioUnitario`, porque en un producto de 1 L ambos coinciden legítimamente.
 - **Factor de precio unitario:** 1.0 si `tienePrecioUnitario`, 0.6 si no. Cubre el riesgo de `SIN_PRECIO_UNITARIO`.
 - **P = base × factor.**
 
@@ -64,11 +65,13 @@ Usa cinco parámetros que la app ya calcula, así que no hace falta capturar nad
 
 Antes de calcular el índice, la app ya impide confirmar una captura con alguno de estos problemas:
 - `BORROSA`
-- `DEMASIADO_LEJOS` (salvo que haya un escaneo válido en vivo)
 - `SIN_TEXTO_LEGIBLE`
 - `SIN_PRECIO`
+- Falta de código: ni la foto ni el escaneo en vivo dieron un código válido
 
-Por eso el índice solo se calcula sobre capturas que ya pasaron esos bloqueos, y cada parámetro queda casi siempre en ≥ 0.5.
+`DEMASIADO_LEJOS` ya no bloquea: si la foto leyó un código válido, no hace falta escanear. Solo baja D.
+
+Por eso el índice solo se calcula sobre capturas que ya pasaron esos bloqueos, y cada parámetro queda casi siempre en ≥ 0.5 (D puede quedar debajo con un código pequeño).
 
 ---
 
@@ -96,7 +99,7 @@ Media geométrica ponderada:
 
 ## 4. Bandas de decisión
 
-Una captura que pasa los bloqueos con todos los parámetros justo en el umbral saca alrededor de 53 %. Con esa referencia:
+Una captura que pasa los bloqueos con todos los parámetros justo en el umbral (P = 0.6, T = 0.7) saca alrededor de 54 %. Con esa referencia:
 
 | ICL | Banda | Acción |
 |---|---|---|
@@ -166,15 +169,17 @@ Los pesos, los anclas y los cortes de arriba son un punto de partida. Para ajust
 ## 7. Cómo encaja con lo que ya existe
 
 - **Cuándo se calcula:** al confirmar la captura. Todos los datos ya están en `Captura` y `Sesion`.
-- **Cómo llega al servidor:** como un chequeo más en `chequeos_locales`, p. ej. `nombre: "confiabilidad_local"`, `puntaje: 0.73` y en `detalle` los cinco subpuntajes. El contrato acepta nombres libres, así que no lo rompe (ver [`contratos.md`](contratos.md)). El servidor decide entre la capa `rapido` y la `fuerte` con ese valor.
+- **Dónde se ve:** al final de la pantalla de Revisión, con el porcentaje, la banda, los cinco subpuntajes y, en banda baja, la foto que conviene retomar.
+- **Cómo llega al servidor:** como un chequeo más en `chequeos_locales`: `nombre: "confiabilidad_local"`, `puntaje` = ICL, `valor` = banda (`alta`/`media`/`baja`), `resultado` = `ok` en banda alta y `duda` en las demás, y en `detalle` los cinco subpuntajes y la foto más débil. El contrato acepta nombres libres, así que no lo rompe (ver [`contratos.md`](contratos.md)). El servidor decide entre la capa `rapido` y la `fuerte` con ese valor.
 - **Recalibración:** guardar el ICL junto a la decisión que regrese el servidor para ajustar pesos y bandas con datos reales.
 
 ### Dónde está cada dato en el código
 
 | Parámetro | Archivo |
 |---|---|
+| **Cálculo del ICL** | `app/src/main/java/com/richi_mc/hackathon3b/core/model/ConfiabilidadLocal.kt` |
 | Nitidez, OCR, distancia | `app/src/main/java/com/richi_mc/hackathon3b/feature/analysis/MlKitImageAnalyzer.kt` |
-| Precio leído, tipo de precio | `app/src/main/java/com/richi_mc/hackathon3b/feature/analysis/RegexPriceParser.kt` |
+| Precio leído, tipo de precio | `app/src/main/java/com/richi_mc/hackathon3b/feature/analysis/price/ScoringPriceParser.kt` |
 | Umbrales | `app/src/main/java/com/richi_mc/hackathon3b/core/model/Umbrales.kt` |
 | Modelos (`AnalisisImagen`, `PrecioDetectado`, `Captura`) | `app/src/main/java/com/richi_mc/hackathon3b/core/model/Modelos.kt` |
 | Chequeos que ya se mandan al servidor | `app/src/main/java/com/richi_mc/hackathon3b/core/network/CapturaMapper.kt` |

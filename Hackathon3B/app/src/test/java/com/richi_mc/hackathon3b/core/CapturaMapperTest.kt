@@ -140,4 +140,20 @@ class CapturaMapperTest {
         assertEquals("falla", d.resultado)
         assertEquals(0.125, d.puntaje!!, 1e-9) // 0.005 / (2*0.02)
     }
+
+    @Test
+    fun confiabilidad_local_se_manda_como_chequeo() {
+        val c = CapturaMapper.toDto(captura(), sesion, dispositivo).chequeosLocales.get("confiabilidad_local")
+        assertEquals("ok", c.resultado)
+        assertEquals("alta", c.valor)
+        assertNotNull(c.puntaje)
+        assertEquals(true, c.detalle!!.startsWith("N="))
+    }
+
+    @Test
+    fun sin_precio_no_hay_confiabilidad_local() {
+        val sinPrecio = PrecioDetectado(null, TipoPrecio.DESCONOCIDO, false, "")
+        val lista = CapturaMapper.toDto(captura(precio = sinPrecio), sesion, dispositivo).chequeosLocales
+        assertEquals(0, lista.count { it.nombre == "confiabilidad_local" })
+    }
 }
