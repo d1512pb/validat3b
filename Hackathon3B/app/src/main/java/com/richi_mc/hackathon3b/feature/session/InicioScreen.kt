@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -84,6 +85,17 @@ fun InicioScreen(
 
     var probando by remember { mutableStateOf(false) }
     var resultadoPrueba by remember { mutableStateOf<Result<String>?>(null) }
+
+    // Al entrar, intenta vaciar las pendientes en silencio (sin chip de resultado ni error).
+    LaunchedEffect(Unit) {
+        try {
+            container.capturaRepository.enviarPendientes()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Silencioso: las pendientes siguen en Room y el botón manual sigue disponible.
+        }
+    }
 
     InicioContent(
         sesion = sesion,

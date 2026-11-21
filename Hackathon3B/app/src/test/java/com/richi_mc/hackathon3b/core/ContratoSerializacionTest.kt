@@ -71,7 +71,7 @@ class ContratoSerializacionTest {
         )
         val texto = ContratoJson.encodeToString(CapturaEntradaDto.serializer(), dto)
         assertTrue(texto, !texto.contains("null"))
-        assertTrue(texto, texto.contains("\"version_contrato\":\"0.1.0\""))
+        assertTrue(texto, texto.contains("\"version_contrato\":\"0.3.0\""))
         assertTrue(texto, texto.contains("\"es_contratipo\":false"))
     }
 

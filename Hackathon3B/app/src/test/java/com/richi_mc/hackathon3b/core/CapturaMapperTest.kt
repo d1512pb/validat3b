@@ -59,7 +59,7 @@ class CapturaMapperTest {
     @Test
     fun campos_basicos() {
         val dto = CapturaMapper.toDto(captura(), sesion, dispositivo, ZoneOffset.ofHours(-6))
-        assertEquals("0.1.0", dto.versionContrato)
+        assertEquals("0.3.0", dto.versionContrato)
         assertEquals("Bodega Aurrerá", dto.cadena)
         assertEquals("Bodega Aurrerá Iztapalapa Centro", dto.tienda)
         assertEquals("7501055363056", dto.codigoBarrasCapturado)

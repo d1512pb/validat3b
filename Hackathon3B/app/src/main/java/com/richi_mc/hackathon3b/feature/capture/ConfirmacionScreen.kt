@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.LocalOffer
 import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material.icons.rounded.Sync
@@ -91,6 +92,7 @@ fun ConfirmacionScreen(
         onCambiarSucursal = onCambiarSucursal,
         onInicio = onInicio,
         onExportar = { vm.exportar { ruta -> compartirJson(context, ruta) } },
+        onReintentar = vm::reintentarEnvio,
     )
 }
 
@@ -116,6 +118,7 @@ fun ConfirmacionContent(
     onCambiarSucursal: () -> Unit,
     onInicio: () -> Unit,
     onExportar: () -> Unit,
+    onReintentar: () -> Unit = {},
 ) {
     GlassBackground {
         Column(
@@ -132,6 +135,14 @@ fun ConfirmacionContent(
             Text(captureId, style = Glass.type.secondary, color = GlassRojo.inkMuted)
 
             state.captura?.let { EstadoEnvioChip(it) }
+            if (state.captura?.estado.let { it == EstadoEnvio.ERROR || it == EstadoEnvio.FALLIDA }) {
+                GlassButton(
+                    if (state.reintentando) "Reintentando…" else "Reintentar envío",
+                    onReintentar,
+                    enabled = !state.reintentando,
+                    icon = Icons.Rounded.Refresh,
+                )
+            }
             state.captura?.takeIf { it.estado == EstadoEnvio.FALLIDA }?.error
                 ?.takeIf { it.isNotBlank() }?.let { error ->
                     Row(verticalAlignment = Alignment.Top) {
@@ -344,7 +355,7 @@ private fun ConfirmacionSinConexionPreview() {
                 ),
                 ResumenSesion(1, 0, 1),
             ),
-            onSiguienteProducto = {}, onCambiarSucursal = {}, onInicio = {}, onExportar = {},
+            onSiguienteProducto = {}, onCambiarSucursal = {}, onInicio = {}, onExportar = {}, onReintentar = {},
         )
     }
 }
@@ -368,7 +379,7 @@ private fun ConfirmacionRechazadaPreview() {
                 ),
                 ResumenSesion(4, 4, 0),
             ),
-            onSiguienteProducto = {}, onCambiarSucursal = {}, onInicio = {}, onExportar = {},
+            onSiguienteProducto = {}, onCambiarSucursal = {}, onInicio = {}, onExportar = {}, onReintentar = {},
         )
     }
 }
@@ -386,7 +397,7 @@ private fun ConfirmacionFallidaPreview() {
                 ),
                 ResumenSesion(1, 0, 1),
             ),
-            onSiguienteProducto = {}, onCambiarSucursal = {}, onInicio = {}, onExportar = {},
+            onSiguienteProducto = {}, onCambiarSucursal = {}, onInicio = {}, onExportar = {}, onReintentar = {},
         )
     }
 }

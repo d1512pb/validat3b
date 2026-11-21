@@ -26,6 +26,7 @@ data class ConfirmacionUiState(
     val resumen: ResumenSesion = ResumenSesion(),
     val exportando: Boolean = false,
     val errorExportar: String? = null,
+    val reintentando: Boolean = false,
 )
 
 class ConfirmacionViewModel(
@@ -34,6 +35,7 @@ class ConfirmacionViewModel(
 ) : ViewModel() {
 
     private val local = MutableStateFlow(Pair(false, null as String?))
+    private val reintentando = MutableStateFlow(false)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private val resumen = container.capturaRepository.observarCaptura(captureId)
@@ -48,9 +50,9 @@ class ConfirmacionViewModel(
         }
 
     val state: StateFlow<ConfirmacionUiState> = combine(
-        container.capturaRepository.observarCaptura(captureId), resumen, local,
-    ) { captura, resumen, (exportando, error) ->
-        ConfirmacionUiState(captura, resumen, exportando, error)
+        container.capturaRepository.observarCaptura(captureId), resumen, local, reintentando,
+    ) { captura, resumen, (exportando, error), reint ->
+        ConfirmacionUiState(captura, resumen, exportando, error, reint)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), ConfirmacionUiState())
 
     /** Exporta el JSON de la sesión; llama [onRuta] con la ruta si se generó un archivo. */
@@ -71,6 +73,24 @@ class ConfirmacionViewModel(
                 throw e
             } catch (e: Exception) {
                 local.update { Pair(false, "No se pudo exportar el JSON. Inténtalo de nuevo.") }
+            }
+        }
+    }
+
+    /** Reenvía la captura (estado ERROR o FALLIDA); ignora taps mientras hay un reintento en curso. */
+    fun reintentarEnvio() {
+        val captura = state.value.captura ?: return
+        if (!reintentando.compareAndSet(expect = false, update = true)) return
+        // EnvioScope sobrevive a la pantalla: el envío no se corta si el usuario sale.
+        EnvioScope.scope.launch {
+            try {
+                container.capturaRepository.enviar(captura)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // El resultado queda en Room y la pantalla lo observa; no hay nada más que hacer.
+            } finally {
+                reintentando.value = false
             }
         }
     }

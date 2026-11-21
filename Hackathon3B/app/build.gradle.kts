@@ -11,7 +11,7 @@ val localProps = Properties().apply {
     val f = rootProject.file("local.properties")
     if (f.exists()) f.inputStream().use { load(it) }
 }
-val servidorUrl: String = localProps.getProperty("servidor.url") ?: "http://10.0.2.2:8000/"
+val servidorUrl: String = localProps.getProperty("servidor.url") ?: "https://validat3b-production.up.railway.app/"
 val servidorApiKey: String = localProps.getProperty("servidor.apiKey") ?: ""
 
 android {

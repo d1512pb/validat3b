@@ -5,11 +5,11 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /**
- * DTOs del contrato móvil <-> servidor v0.1.0 (../contratos/). Nombres snake_case exactos.
+ * DTOs del contrato móvil <-> servidor v0.3.0 (../contratos/). Nombres snake_case exactos.
  * No editar a mano si cambia el contrato: regenerar contra `captura_entrada.schema.json`.
  */
 
-const val VERSION_CONTRATO = "0.1.0"
+const val VERSION_CONTRATO = "0.3.0"
 
 /** Json compartido para red y exportes. */
 val ContratoJson: Json = Json {

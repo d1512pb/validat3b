@@ -21,9 +21,14 @@ import java.io.InterruptedIOException
 import java.time.Instant
 import java.time.ZoneId
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.builtins.ListSerializer
@@ -45,7 +50,15 @@ class CapturaRepositoryImpl(
     private val ajustes: AjustesServidor,
     private val apiProvider: (String) -> Validat3BApi = ApiFactory::crear,
     private val saludApiProvider: (String) -> Validat3BApi = ApiFactory::crearSalud,
+    /** Ámbito para el vaciado de pendientes en segundo plano tras un envío exitoso. */
+    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) : CapturaRepository {
+
+    /** Serializa los envíos: solo una captura viaja al servidor a la vez. */
+    private val envioMutex = Mutex()
+
+    /** Evita pasadas simultáneas de [enviarPendientes]. */
+    private val pasadaMutex = Mutex()
 
     private val capturas get() = db.capturaDao()
     private val sesiones get() = db.sesionDao()
@@ -60,6 +73,34 @@ class CapturaRepositoryImpl(
         capturas.pendientes().map { it.toModelo() }
 
     override suspend fun enviar(c: Captura): Result<ResultadoServidor> {
+        val resultado = enviarSerializado(c)
+        // Aprovecha que hay red: intenta vaciar el resto de pendientes sin bloquear este resultado.
+        if (resultado.isSuccess) {
+            scope.launch {
+                try {
+                    enviarPendientes()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    // Es oportunista: si falla, las pendientes siguen en Room para el próximo intento.
+                }
+            }
+        }
+        return resultado
+    }
+
+    /** Toma el lock, relee la captura de Room y envía solo si todavía hace falta. */
+    private suspend fun enviarSerializado(c: Captura): Result<ResultadoServidor> =
+        envioMutex.withLock { enviarSinLock(c) }
+
+    /** Cuerpo del envío; quien lo llame debe tener [envioMutex] (el Mutex no es reentrante). */
+    private suspend fun enviarSinLock(c: Captura): Result<ResultadoServidor> {
+        // Otro envío pudo haberla completado mientras esperábamos el lock.
+        val guardada = capturas.obtener(c.captureId)?.toModelo()
+        if (guardada?.estado == EstadoEnvio.ENVIADA) {
+            guardada.respuesta?.let { return Result.success(it) }
+        }
+
         // Sin sesión o sin foto en disco: reintentar no lo arregla (contratos.md §5) -> FALLIDA.
         val sesion = sesionDe(c.sesionId)
             ?: return fallar(
@@ -153,15 +194,22 @@ class CapturaRepositoryImpl(
     }
 
     override suspend fun enviarPendientes(): Int {
-        var enviadas = 0
-        for (p in capturas.pendientes()) {
-            // Puede haberse enviado mientras tanto (envío inmediato al confirmar).
-            if (capturas.obtener(p.captureId)?.estado == EstadoEnvio.ENVIADA.name) continue
-            val r = enviar(p.toModelo())
-            if (r.isSuccess) enviadas++
-            else if ((r.exceptionOrNull() as? EnvioException)?.sinConexion == true) break
+        // Ya hay una pasada en curso: no se encima otra.
+        if (!pasadaMutex.tryLock()) return 0
+        try {
+            var enviadas = 0
+            for (p in capturas.pendientes()) {
+                // Puede haberse enviado mientras tanto (envío inmediato al confirmar).
+                if (capturas.obtener(p.captureId)?.estado == EstadoEnvio.ENVIADA.name) continue
+                // El lock es por captura (no por pasada) para no frenar un envío inmediato del usuario.
+                val r = enviarSerializado(p.toModelo())
+                if (r.isSuccess) enviadas++
+                else if ((r.exceptionOrNull() as? EnvioException)?.sinConexion == true) break
+            }
+            return enviadas
+        } finally {
+            pasadaMutex.unlock()
         }
-        return enviadas
     }
 
     override suspend fun probarServidor(): Result<String> = try {
