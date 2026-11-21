@@ -35,7 +35,15 @@ enum class Problema(val corto: String, val mensaje: String, val bloqueante: Bool
     SIN_PRECIO_UNITARIO("Sin precio unitario", "No se ve el precio unitario (por kg / por litro). El servidor decidirá.", bloqueante = false);
 }
 
-enum class EstadoEnvio { PENDIENTE, ENVIADA, ERROR }
+/**
+ * Estado del envío al servidor.
+ * - PENDIENTE: aún no se intenta (o se está enviando).
+ * - ENVIADA: el servidor respondió 200 con una decisión.
+ * - ERROR: falla reintentable (sin red, timeout, 5xx, 413 tras recomprimir): se reintenta desde "Enviar pendientes".
+ * - FALLIDA: el servidor la rechazó por un problema que reintentar no arregla (400, 401, 415, 422):
+ *   no se reintenta sola y queda para revisión manual (contratos.md §5).
+ */
+enum class EstadoEnvio { PENDIENTE, ENVIADA, ERROR, FALLIDA }
 
 data class Sesion(
     val id: String,
@@ -86,9 +94,20 @@ data class ProductoEsperado(
     val esContratipo: Boolean = false,
 )
 
+/** Decisiones del contrato. `decision` desconocida → REVISION_MANUAL (contratos.md §6). */
+object Decision {
+    const val APROBADA = "aprobada"
+    const val RECHAZADA = "rechazada"
+    const val REVISION_MANUAL = "revision_manual"
+    fun normalizar(d: String?): String = when (d) {
+        APROBADA, RECHAZADA, REVISION_MANUAL -> d
+        else -> REVISION_MANUAL
+    }
+}
+
 /** Respuesta del servidor (subconjunto de `respuesta_captura.schema.json`). */
 data class ResultadoServidor(
-    val decision: String,             // aprobada | rechazada | revision_manual
+    val decision: String,             // aprobada | rechazada | revision_manual (ya normalizada)
     val confidenceScore: Double?,
     val reasonCode: String?,
     val explicacion: String?,
@@ -96,7 +115,18 @@ data class ResultadoServidor(
     val precioDetectado: Double? = null,
     val codigoBarrasDetectado: String? = null,
     val capaDecisiva: String? = null,
-)
+    /** `validaciones` del servidor: tienda_fachada / producto / codigo_barras / evidencia_precio → "ok" | "falla". */
+    val validaciones: Map<String, String> = emptyMap(),
+    /** Fotos que conviene repetir, derivadas de validaciones en falla y del reason_code (contratos.md §4.3). */
+    val fotosARepetir: List<TipoFoto> = emptyList(),
+    val tipoPrecio: String? = null,
+    val precioUnitarioDetectado: Double? = null,
+    val promocion: String? = null,
+) {
+    /** Texto para el capturista: avisos si hay; si no, la explicación (contratos.md §4.2). */
+    val mensajesCapturista: List<String>
+        get() = avisos.ifEmpty { listOfNotNull(explicacion?.takeIf { it.isNotBlank() }) }
+}
 
 data class Captura(
     val captureId: String,
@@ -109,8 +139,15 @@ data class Captura(
     val estado: EstadoEnvio = EstadoEnvio.PENDIENTE,
     val respuesta: ResultadoServidor? = null,
     val error: String? = null,
+    /** Código escaneado aparte (paso "Escanear código"); null si no se escaneó. */
+    val codigoEscaneado: CodigoEscaneado? = null,
 ) {
     val enviada get() = estado == EstadoEnvio.ENVIADA
+
+    /** Código final de la captura: escaneado válido > foto del producto > etiqueta. */
+    val codigoBarrasFinal: String?
+        get() = codigoEscaneado?.takeIf { it.checksumOk }?.valor
+            ?: producto.codigoBarras ?: etiqueta.codigoBarras ?: codigoEscaneado?.valor
 }
 
 data class Ubicacion(val lat: Double, val lon: Double, val precisionM: Float?)
@@ -121,4 +158,32 @@ data class BorradorCaptura(
     val producto: AnalisisImagen? = null,
     val etiqueta: AnalisisImagen? = null,
     val precio: PrecioDetectado? = null,
+    val codigoEscaneado: CodigoEscaneado? = null,
+) {
+    /** Problemas efectivos de la foto del producto (ver [problemasProductoEfectivos]). */
+    val problemasProducto: List<Problema>
+        get() = producto?.let { problemasProductoEfectivos(it, codigoEscaneado) }.orEmpty()
+
+    /** El paso de escaneo es obligatorio si la foto del producto no leyó un código válido. */
+    val requiereEscaneo: Boolean
+        get() = producto != null && producto.codigoBarras == null ||
+            producto?.problemas?.contains(Problema.CODIGO_INVALIDO) == true
+}
+
+/** Código de barras leído con el escáner en vivo (algunos productos lo traen fuera del empaque). */
+data class CodigoEscaneado(
+    val valor: String,
+    val formato: String?,       // "EAN_13", "EAN_8", "UPC_A", "UPC_E"
+    val checksumOk: Boolean,
+    val timestampMillis: Long,
 )
+
+/** Problemas de la foto del producto que dependen del código de barras. */
+val PROBLEMAS_DE_CODIGO = setOf(Problema.SIN_CODIGO_BARRAS, Problema.CODIGO_INVALIDO, Problema.DEMASIADO_LEJOS)
+
+/**
+ * Con un código escaneado válido, los problemas de código de la foto del producto dejan de
+ * contar: el código ya se obtuvo por otra vía. Los de calidad (borrosa, oscura…) siguen.
+ */
+fun problemasProductoEfectivos(producto: AnalisisImagen, escaneado: CodigoEscaneado?): List<Problema> =
+    if (escaneado?.checksumOk == true) producto.problemas - PROBLEMAS_DE_CODIGO else producto.problemas

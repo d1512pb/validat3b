@@ -12,6 +12,7 @@ import androidx.room.Upsert
 import com.richi_mc.hackathon3b.core.model.AnalisisImagen
 import com.richi_mc.hackathon3b.core.model.Cadena
 import com.richi_mc.hackathon3b.core.model.Captura
+import com.richi_mc.hackathon3b.core.model.CodigoEscaneado
 import com.richi_mc.hackathon3b.core.model.EstadoEnvio
 import com.richi_mc.hackathon3b.core.model.PrecioDetectado
 import com.richi_mc.hackathon3b.core.model.Problema
@@ -61,6 +62,8 @@ data class CapturaEntity(
     val estado: String,
     val respuestaJson: String?,
     val error: String?,
+    /** CodigoEscaneado (paso "Escanear código") serializado a JSON; null si no se escaneó. */
+    val codigoEscaneadoJson: String? = null,
 )
 
 // ---------------------------------------------------------------------- DAOs
@@ -82,7 +85,8 @@ interface CapturaDao {
     fun observarPorSesion(sesionId: String): Flow<List<CapturaEntity>>
     @Query("SELECT * FROM capturas WHERE sesionId = :sesionId ORDER BY timestampMillis ASC")
     suspend fun listarPorSesion(sesionId: String): List<CapturaEntity>
-    @Query("SELECT * FROM capturas WHERE estado != 'ENVIADA' ORDER BY timestampMillis ASC")
+    /** Por reenviar: PENDIENTE y ERROR. Las FALLIDA no se reintentan solas. */
+    @Query("SELECT * FROM capturas WHERE estado IN ('PENDIENTE', 'ERROR') ORDER BY timestampMillis ASC")
     suspend fun pendientes(): List<CapturaEntity>
     @Query("SELECT COUNT(*) FROM capturas WHERE estado != 'ENVIADA'") fun observarPendientes(): Flow<Int>
     @Query("SELECT COUNT(*) FROM capturas WHERE timestampMillis >= :desde AND timestampMillis < :hasta")
@@ -91,7 +95,7 @@ interface CapturaDao {
 
 // ------------------------------------------------------------------ Database
 
-@Database(entities = [CapturaEntity::class, SesionEntity::class], version = 1, exportSchema = false)
+@Database(entities = [CapturaEntity::class, SesionEntity::class], version = 2, exportSchema = false)
 abstract class Validat3BDatabase : RoomDatabase() {
     abstract fun capturaDao(): CapturaDao
     abstract fun sesionDao(): SesionDao
@@ -149,7 +153,30 @@ internal data class ResultadoJson(
     val precioDetectado: Double? = null,
     val codigoBarrasDetectado: String? = null,
     val capaDecisiva: String? = null,
+    // Campos agregados con el contrato v0.1.0 completo; con default para filas viejas.
+    val validaciones: Map<String, String> = emptyMap(),
+    val fotosARepetir: List<TipoFoto> = emptyList(),
+    val tipoPrecio: String? = null,
+    val precioUnitarioDetectado: Double? = null,
+    val promocion: String? = null,
 )
+
+@Serializable
+internal data class CodigoEscaneadoJson(
+    val valor: String,
+    val formato: String? = null,
+    val checksumOk: Boolean = false,
+    val timestampMillis: Long = 0L,
+)
+
+internal fun CodigoEscaneado.toJson() = JsonDb.encodeToString(
+    CodigoEscaneadoJson.serializer(), CodigoEscaneadoJson(valor, formato, checksumOk, timestampMillis)
+)
+
+internal fun codigoEscaneadoDeJson(s: String): CodigoEscaneado =
+    JsonDb.decodeFromString(CodigoEscaneadoJson.serializer(), s).let {
+        CodigoEscaneado(it.valor, it.formato, it.checksumOk, it.timestampMillis)
+    }
 
 internal fun AnalisisImagen.toJson() = JsonDb.encodeToString(
     AnalisisJson.serializer(),
@@ -175,7 +202,8 @@ internal fun ResultadoServidor.toJson() = JsonDb.encodeToString(
     ResultadoJson.serializer(),
     ResultadoJson(
         decision, confidenceScore, reasonCode, explicacion, avisos,
-        precioDetectado, codigoBarrasDetectado, capaDecisiva
+        precioDetectado, codigoBarrasDetectado, capaDecisiva,
+        validaciones, fotosARepetir, tipoPrecio, precioUnitarioDetectado, promocion,
     )
 )
 
@@ -183,7 +211,8 @@ internal fun resultadoDeJson(s: String): ResultadoServidor =
     JsonDb.decodeFromString(ResultadoJson.serializer(), s).let {
         ResultadoServidor(
             it.decision, it.confidenceScore, it.reasonCode, it.explicacion, it.avisos,
-            it.precioDetectado, it.codigoBarrasDetectado, it.capaDecisiva
+            it.precioDetectado, it.codigoBarrasDetectado, it.capaDecisiva,
+            it.validaciones, it.fotosARepetir, it.tipoPrecio, it.precioUnitarioDetectado, it.promocion,
         )
     }
 
@@ -211,6 +240,7 @@ internal fun Captura.toEntity() = CapturaEntity(
     productoJson = producto.toJson(), etiquetaJson = etiqueta.toJson(), precioJson = precio.toJson(),
     timestampMillis = timestampMillis, estado = estado.name,
     respuestaJson = respuesta?.toJson(), error = error,
+    codigoEscaneadoJson = codigoEscaneado?.toJson(),
 )
 
 internal fun CapturaEntity.toModelo() = Captura(
@@ -226,4 +256,5 @@ internal fun CapturaEntity.toModelo() = Captura(
     estado = runCatching { EstadoEnvio.valueOf(estado) }.getOrDefault(EstadoEnvio.PENDIENTE),
     respuesta = respuestaJson?.let { runCatching { resultadoDeJson(it) }.getOrNull() },
     error = error,
+    codigoEscaneado = codigoEscaneadoJson?.let { runCatching { codigoEscaneadoDeJson(it) }.getOrNull() },
 )

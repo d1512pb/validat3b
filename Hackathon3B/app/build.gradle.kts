@@ -34,7 +34,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            // HTTP sin TLS solo en debug (servidor local: 10.0.2.2 o IP de la PC). contratos.md §7.
+            manifestPlaceholders["permitirHttp"] = "true"
+        }
         release {
+            manifestPlaceholders["permitirHttp"] = "false"
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")

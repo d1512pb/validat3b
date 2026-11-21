@@ -19,10 +19,12 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.GpsFixed
+import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Storefront
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -80,6 +82,9 @@ fun InicioScreen(
     var enviando by remember { mutableStateOf(false) }
     var resultado by remember { mutableStateOf<ResultadoEnvio?>(null) }
 
+    var probando by remember { mutableStateOf(false) }
+    var resultadoPrueba by remember { mutableStateOf<Result<String>?>(null) }
+
     InicioContent(
         sesion = sesion,
         pendientes = pendientes,
@@ -114,6 +119,24 @@ fun InicioScreen(
         },
         onGuardarUrl = container.ajustes::setUrl,
         onModoSimulado = container.ajustes::setModoSimulado,
+        probando = probando,
+        resultadoPrueba = resultadoPrueba,
+        onProbarConexion = {
+            if (!probando) {
+                probando = true
+                resultadoPrueba = null
+                scope.launch {
+                    resultadoPrueba = try {
+                        container.capturaRepository.probarServidor()
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        Result.failure(e)
+                    }
+                    probando = false
+                }
+            }
+        },
     )
 }
 
@@ -131,6 +154,9 @@ fun InicioContent(
     onEnviarPendientes: () -> Unit,
     onGuardarUrl: (String) -> Unit,
     onModoSimulado: (Boolean) -> Unit,
+    probando: Boolean = false,
+    resultadoPrueba: Result<String>? = null,
+    onProbarConexion: () -> Unit = {},
 ) {
     var ajustesAbiertos by remember { mutableStateOf(false) }
 
@@ -154,7 +180,7 @@ fun InicioContent(
             }
 
             AnimatedVisibility(ajustesAbiertos) {
-                AjustesServidorCard(url, modoSimulado, onGuardarUrl, onModoSimulado)
+                AjustesServidorCard(url, modoSimulado, onGuardarUrl, onModoSimulado, probando, resultadoPrueba, onProbarConexion)
             }
 
             SesionActivaCard(sesion)
@@ -256,6 +282,9 @@ private fun AjustesServidorCard(
     modoSimulado: Boolean,
     onGuardarUrl: (String) -> Unit,
     onModoSimulado: (Boolean) -> Unit,
+    probando: Boolean,
+    resultadoPrueba: Result<String>?,
+    onProbarConexion: () -> Unit,
 ) {
     var texto by remember(url) { mutableStateOf(url) }
     GlassCard(Modifier.fillMaxWidth()) {
@@ -279,6 +308,35 @@ private fun AjustesServidorCard(
             label = { if (it) "Sí" else "No" },
             onSelect = onModoSimulado,
         )
+        Spacer(Modifier.height(GlassDimens.s12))
+        GlassButton(
+            if (probando) "Probando…" else "Probar conexión", onProbarConexion,
+            enabled = !probando && url.isNotBlank(), icon = Icons.Rounded.Wifi,
+        )
+        if (probando) {
+            Spacer(Modifier.height(GlassDimens.s8))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = GlassRojo.inkSecondary,
+                )
+                Text(
+                    "Conectando con el servidor…", style = Glass.type.secondary,
+                    color = GlassRojo.inkSecondary, modifier = Modifier.padding(start = GlassDimens.s8),
+                )
+            }
+        }
+        resultadoPrueba?.let { r ->
+            Spacer(Modifier.height(GlassDimens.s8))
+            r.fold(
+                onSuccess = { StatusChip(it, GlassRojo.success, icon = Icons.Rounded.CheckCircle) },
+                onFailure = {
+                    StatusChip(
+                        it.message ?: "No se pudo conectar con el servidor",
+                        GlassRojo.danger, icon = Icons.Rounded.ErrorOutline,
+                    )
+                },
+            )
+        }
     }
 }
 
@@ -312,5 +370,22 @@ private fun InicioSinSesionPreview() {
             onIniciarCaptura = {}, onContinuar = {}, onCambiarSucursal = {},
             onEnviarPendientes = {}, onGuardarUrl = {}, onModoSimulado = {},
         )
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF020617, heightDp = 700)
+@Composable
+private fun AjustesServidorPreview() {
+    GlassRojoTheme {
+        Column(Modifier.padding(GlassDimens.screenSide), verticalArrangement = GlassDimens.itemSpacing) {
+            AjustesServidorCard(
+                "http://10.0.2.2:8000/", true, {}, {}, probando = false,
+                resultadoPrueba = Result.success("Servidor en línea, modo simulado"), onProbarConexion = {},
+            )
+            AjustesServidorCard(
+                "http://10.0.2.2:8000/", false, {}, {}, probando = true,
+                resultadoPrueba = Result.failure(Exception("No se pudo conectar con el servidor")), onProbarConexion = {},
+            )
+        }
     }
 }

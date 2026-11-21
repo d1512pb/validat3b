@@ -99,7 +99,7 @@ fun GlassButton(
             .alpha(if (enabled) 1f else 0.4f)
             .glassSurface(shape, LocalHazeState.current)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 20.dp),
+            .padding(horizontal = 12.dp),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -107,7 +107,10 @@ fun GlassButton(
             Icon(icon, contentDescription = null, tint = GlassRojo.inkStrong, modifier = Modifier.size(GlassDimens.icon))
             Spacer(Modifier.width(8.dp))
         }
-        Text(text, style = Glass.type.bodyStrong, color = GlassRojo.inkStrong)
+        Text(
+            text, style = Glass.type.bodyStrong, color = GlassRojo.inkStrong,
+            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
     }
 }
 

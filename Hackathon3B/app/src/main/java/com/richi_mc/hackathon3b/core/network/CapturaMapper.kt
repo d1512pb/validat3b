@@ -4,6 +4,8 @@ import android.os.Build
 import com.richi_mc.hackathon3b.BuildConfig
 import com.richi_mc.hackathon3b.core.model.AnalisisImagen
 import com.richi_mc.hackathon3b.core.model.Captura
+import com.richi_mc.hackathon3b.core.model.CodigoEscaneado
+import com.richi_mc.hackathon3b.core.model.Decision
 import com.richi_mc.hackathon3b.core.model.Problema
 import com.richi_mc.hackathon3b.core.model.ResultadoServidor
 import com.richi_mc.hackathon3b.core.model.Sesion
@@ -24,10 +26,23 @@ data class DatosDispositivo(
 ) {
     companion object {
         fun actual() = DatosDispositivo(
-            dispositivo = Build.MODEL,
+            dispositivo = nombre(Build.MANUFACTURER, Build.MODEL),
             sistemaOperativo = "Android " + Build.VERSION.RELEASE,
             versionApp = BuildConfig.VERSION_NAME,
         )
+
+        /** "Fabricante Modelo" sin repetir la marca si el modelo ya empieza con ella (ignora mayúsculas). */
+        fun nombre(fabricante: String?, modelo: String?): String? {
+            val f = fabricante?.trim().orEmpty()
+            val m = modelo?.trim().orEmpty()
+            return when {
+                f.isEmpty() && m.isEmpty() -> null
+                f.isEmpty() -> m
+                m.isEmpty() -> f
+                m.startsWith(f, ignoreCase = true) -> m
+                else -> "$f $m"
+            }
+        }
     }
 }
 
@@ -43,13 +58,11 @@ object CapturaMapper {
         dispositivo: DatosDispositivo = DatosDispositivo.actual(),
         zona: ZoneId = ZoneId.systemDefault(),
     ): CapturaEntradaDto {
-        val ubicacion = if (s.lat != null && s.lon != null) {
-            UbicacionDto(s.lat, s.lon, s.precisionM?.toDouble())
-        } else null
+        val ubicacion = ubicacionDto(s.lat, s.lon, s.precisionM)
         val pe = c.productoEsperado
         return CapturaEntradaDto(
             captureId = c.captureId,
-            codigoBarrasCapturado = c.producto.codigoBarras ?: c.etiqueta.codigoBarras,
+            codigoBarrasCapturado = c.codigoBarrasFinal,
             productoEsperado = ProductoEsperadoDto(
                 sku = pe.sku,
                 descripcion = pe.descripcion,
@@ -72,16 +85,65 @@ object CapturaMapper {
         )
     }
 
-    fun toResultado(dto: RespuestaCapturaDto) = ResultadoServidor(
-        decision = dto.decision,
-        confidenceScore = dto.confidenceScore,
-        reasonCode = dto.reasonCode,
-        explicacion = dto.explicacion,
-        avisos = dto.traza?.avisos.orEmpty(),
-        precioDetectado = dto.precioDetectado,
-        codigoBarrasDetectado = dto.codigoBarrasDetectado,
-        capaDecisiva = dto.traza?.capaDecisiva,
-    )
+    /** Solo con lat/lon presentes, en rango y distintas de (0, 0); `precision_m` solo si es >= 0. */
+    fun ubicacionDto(lat: Double?, lon: Double?, precisionM: Float?): UbicacionDto? {
+        if (lat == null || lon == null) return null
+        if (lat !in -90.0..90.0 || lon !in -180.0..180.0) return null
+        if (lat == 0.0 && lon == 0.0) return null
+        val precision = precisionM?.toDouble()?.takeIf { it >= 0.0 }
+        return UbicacionDto(lat, lon, precision)
+    }
+
+    fun toResultado(dto: RespuestaCapturaDto): ResultadoServidor {
+        val decision = Decision.normalizar(dto.decision)
+        val v = dto.validaciones
+        val validaciones = buildMap {
+            v?.tiendaFachada?.let { put("tienda_fachada", it) }
+            v?.producto?.let { put("producto", it) }
+            v?.codigoBarras?.let { put("codigo_barras", it) }
+            v?.evidenciaPrecio?.let { put("evidencia_precio", it) }
+        }
+        return ResultadoServidor(
+            decision = decision,
+            confidenceScore = dto.confidenceScore,
+            reasonCode = dto.reasonCode,
+            explicacion = dto.explicacion,
+            avisos = dto.traza?.avisos.orEmpty(),
+            precioDetectado = dto.precioDetectado,
+            codigoBarrasDetectado = dto.codigoBarrasDetectado,
+            capaDecisiva = dto.traza?.capaDecisiva,
+            validaciones = validaciones,
+            fotosARepetir = fotosARepetir(decision, dto.reasonCode, validaciones),
+            tipoPrecio = dto.traza?.tipoPrecio,
+            precioUnitarioDetectado = dto.traza?.precioUnitarioDetectado,
+            promocion = dto.traza?.promocion,
+        )
+    }
+
+    /**
+     * Fotos a repetir (contratos.md §4.2/§4.3): las de validaciones en "falla" unidas con las del
+     * reason_code, sin duplicados y en orden fachada, producto, etiqueta. Vacío si se aprobó.
+     */
+    fun fotosARepetir(decision: String, reasonCode: String?, validaciones: Map<String, String>): List<TipoFoto> {
+        if (decision == Decision.APROBADA) return emptyList()
+        val fotos = mutableSetOf<TipoFoto>()
+        validaciones.forEach { (clave, estado) ->
+            if (estado != FALLA) return@forEach
+            when (clave) {
+                "tienda_fachada" -> fotos += TipoFoto.FACHADA
+                "producto", "codigo_barras" -> fotos += TipoFoto.PRODUCTO
+                "evidencia_precio" -> fotos += TipoFoto.ETIQUETA
+            }
+        }
+        when (reasonCode?.trim()?.uppercase(Locale.ROOT)) {
+            "CONTRATIPO_INVALIDO", "PRODUCTO_NO_COINCIDE", "DESCRIPCION_INCOMPLETA", "PRODUCTO_NO_VISIBLE" ->
+                fotos += TipoFoto.PRODUCTO
+            "FACHADA_INCORRECTA" -> fotos += TipoFoto.FACHADA
+            "SIN_ETIQUETA_PRECIO", "SIN_PRECIO_UNITARIO" -> fotos += TipoFoto.ETIQUETA
+            // CAPTURA_LEJANA / IMAGEN_BORROSA / FOTO_DE_PANTALLA y desconocidos: solo las validaciones.
+        }
+        return TipoFoto.entries.filter { it in fotos }
+    }
 
     fun formatearFecha(millis: Long, zona: ZoneId = ZoneId.systemDefault()): String =
         Instant.ofEpochMilli(millis).atZone(zona).truncatedTo(ChronoUnit.SECONDS)
@@ -101,13 +163,24 @@ object CapturaMapper {
         fotos.forEach { lista += nitidez(it) }
         fotos.forEach { lista += iluminacion(it) }
 
-        lista += codigoBarras(c.producto)
-        lista += distancia(c.producto)
+        val escaneado = c.codigoEscaneado
+        lista += if (escaneado != null) codigoEscaneadoChequeo(escaneado) else codigoBarras(c.producto)
+        lista += distancia(c.producto, escaneadoValido = escaneado?.checksumOk == true)
         lista += etiquetaPresente(c.etiqueta)
         lista += precioLeido(c)
 
         val codProducto = c.producto.codigoBarras
         val codEtiqueta = c.etiqueta.codigoBarras
+        if (escaneado != null && codProducto != null) {
+            val coincide = mismoCodigo(escaneado.valor, codProducto)
+            lista += ChequeoLocalDto(
+                nombre = "codigo_foto_coincide",
+                foto = null,
+                resultado = if (coincide) OK else FALLA,
+                valor = escaneado.valor,
+                detalle = "escaneado=${escaneado.valor}; foto=$codProducto",
+            )
+        }
         if (codProducto != null && codEtiqueta != null) {
             val coincide = codProducto == codEtiqueta
             lista += ChequeoLocalDto(
@@ -159,11 +232,30 @@ object CapturaMapper {
         )
     }
 
-    private fun distancia(a: AnalisisImagen): ChequeoLocalDto {
+    /** Código leído en vivo: no viene de una de las 3 fotos, por eso `foto = null`. */
+    private fun codigoEscaneadoChequeo(e: CodigoEscaneado) = ChequeoLocalDto(
+        nombre = "codigo_barras",
+        foto = null,
+        resultado = if (e.checksumOk) OK else FALLA,
+        valor = e.valor,
+        detalle = "escaneado en vivo; formato ${e.formato ?: "desconocido"}",
+    )
+
+    /** Compara códigos ignorando ceros a la izquierda (UPC-A vs EAN-13). */
+    internal fun mismoCodigo(a: String, b: String) = a.trim().trimStart('0') == b.trim().trimStart('0')
+
+    private fun distancia(a: AnalisisImagen, escaneadoValido: Boolean = false): ChequeoLocalDto {
         val area = a.areaCodigo
         val min = Umbrales.areaCodigoMin
         val lejos = Problema.DEMASIADO_LEJOS in a.problemas
         return when {
+            lejos && escaneadoValido -> ChequeoLocalDto(
+                nombre = "distancia",
+                foto = TipoFoto.PRODUCTO.contrato,
+                resultado = DUDA,
+                puntaje = area?.let { if (min <= 0.0) 1.0 else (it / (2 * min)).coerceIn(0.0, 1.0) },
+                detalle = "el código se ve pequeño en la foto, pero se obtuvo un escaneo válido en vivo",
+            )
             area == null -> ChequeoLocalDto(
                 nombre = "distancia", foto = TipoFoto.PRODUCTO.contrato, resultado = DUDA,
                 detalle = "sin código de barras para medir la distancia",

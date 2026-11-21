@@ -17,8 +17,11 @@ interface CapturaRepository {
     suspend fun pendientes(): List<Captura>
     /** Envía al servidor y actualiza estado/respuesta en la base. Devuelve la respuesta. */
     suspend fun enviar(c: Captura): Result<ResultadoServidor>
-    /** Reintenta todas las pendientes/con error. Devuelve cuántas se enviaron. */
+    /** Reintenta las PENDIENTE y ERROR (no las FALLIDA). Devuelve cuántas se enviaron. */
     suspend fun enviarPendientes(): Int
+    /** `GET /salud`: Result con un texto corto del estado del servidor, o el error legible. */
+    suspend fun probarServidor(): Result<String>
+    /** Cuenta las capturas no ENVIADA (PENDIENTE, ERROR y FALLIDA). */
     fun observarPendientes(): Flow<Int>
     fun observarCaptura(captureId: String): Flow<Captura?>
     fun observarPorSesion(sesionId: String): Flow<List<Captura>>

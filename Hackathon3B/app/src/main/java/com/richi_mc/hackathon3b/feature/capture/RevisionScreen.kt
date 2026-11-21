@@ -132,7 +132,11 @@ fun RevisionContent(
                 verticalArrangement = GlassDimens.itemSpacing,
             ) {
                 FotoCard("Fachada", state.sesion?.fachadaPath, state.sesion?.fachadaAnalisis, existe = state.sesion != null)
-                FotoCard("Producto", b.producto?.path, b.producto, existe = b.producto != null)
+                // Con un escaneo válido, los problemas de código de la foto no cuentan (problemasProducto).
+                FotoCard(
+                    "Producto", b.producto?.path,
+                    b.producto?.copy(problemas = b.problemasProducto), existe = b.producto != null,
+                )
                 FotoCard("Etiqueta de precio", b.etiqueta?.path, b.etiqueta, existe = b.etiqueta != null)
                 DatosCard(b, onVerTexto = { verTexto = true })
             }
@@ -204,15 +208,6 @@ private fun FotoCard(titulo: String, path: String?, analisis: AnalisisImagen?, e
     }
 }
 
-private fun mismoCodigo(a: String, b: String) = a.trim().trimStart('0') == b.trim().trimStart('0')
-
-private fun tipoPrecioTexto(t: TipoPrecio) = when (t) {
-    TipoPrecio.REGULAR -> "Regular"
-    TipoPrecio.OFERTA -> "Oferta"
-    TipoPrecio.VOLUMEN -> "Volumen"
-    TipoPrecio.DESCONOCIDO -> "No identificado"
-}
-
 @Composable
 private fun DatosCard(b: BorradorCaptura, onVerTexto: () -> Unit) {
     val codProducto = b.producto?.codigoBarras
@@ -225,19 +220,56 @@ private fun DatosCard(b: BorradorCaptura, onVerTexto: () -> Unit) {
         Spacer(Modifier.height(GlassDimens.s12))
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Dato(
-                "Código de barras",
+                "Código en la foto del producto",
                 if (codProducto != null) {
                     codProducto + (b.producto?.formatoCodigo?.let { " · " + it.replace('_', ' ') } ?: "")
                 } else "No detectado",
             ) {
-                if (codProducto == null) StatusChip("Sin código", GlassRojo.danger, icon = Icons.Rounded.ErrorOutline)
+                if (codProducto == null) {
+                    if (b.codigoEscaneado?.checksumOk == true) {
+                        StatusChip("Sin código en la foto", GlassRojo.inkMuted, icon = Icons.Rounded.Info)
+                    } else {
+                        StatusChip("Sin código", GlassRojo.danger, icon = Icons.Rounded.ErrorOutline)
+                    }
+                }
+            }
+
+            val escaneado = b.codigoEscaneado
+            Dato(
+                "Código escaneado",
+                if (escaneado != null) {
+                    escaneado.valor + (formatoLegible(escaneado.formato)?.let { " · $it" } ?: "")
+                } else "No se escaneó",
+            ) {
+                when {
+                    escaneado == null && b.requiereEscaneo ->
+                        StatusChip("Falta escanear", GlassRojo.danger, icon = Icons.Rounded.ErrorOutline)
+                    escaneado == null -> StatusChip("No necesario", GlassRojo.inkMuted, icon = Icons.Rounded.Info)
+                    escaneado.checksumOk ->
+                        StatusChip("Checksum válido", GlassRojo.success, icon = Icons.Rounded.CheckCircle)
+                    else ->
+                        StatusChip("Código inválido: vuelve a escanear", GlassRojo.danger, icon = Icons.Rounded.ErrorOutline)
+                }
+                if (escaneado != null && codProducto != null) {
+                    Spacer(Modifier.height(4.dp))
+                    if (mismoCodigo(escaneado.valor, codProducto)) {
+                        StatusChip("Coincide con la foto", GlassRojo.success, icon = Icons.Rounded.CheckCircle)
+                    } else {
+                        StatusChip("No coincide con la foto", GlassRojo.warning, icon = Icons.Rounded.Warning)
+                    }
+                }
+            }
+
+            Dato("Código final", codigoFinal(b) ?: "No detectado") {
+                if (codigoFinal(b) == null) StatusChip("Sin código", GlassRojo.danger, icon = Icons.Rounded.ErrorOutline)
             }
 
             Dato("Código en la etiqueta", codEtiqueta ?: "No detectado") {
+                val referencia = b.codigoEscaneado?.takeIf { it.checksumOk }?.valor ?: codProducto
                 when {
-                    codProducto == null || codEtiqueta == null ->
+                    referencia == null || codEtiqueta == null ->
                         StatusChip("No se pudo comparar", GlassRojo.warning, icon = Icons.Rounded.Warning)
-                    mismoCodigo(codProducto, codEtiqueta) ->
+                    mismoCodigo(referencia, codEtiqueta) ->
                         StatusChip("Coincide con el producto", GlassRojo.success, icon = Icons.Rounded.CheckCircle)
                     else ->
                         StatusChip("No coincide con el producto", GlassRojo.warning, icon = Icons.Rounded.Warning)
@@ -246,10 +278,11 @@ private fun DatosCard(b: BorradorCaptura, onVerTexto: () -> Unit) {
 
             if (codCatalogo != null) {
                 Dato("Código del catálogo", codCatalogo) {
+                    val final = codigoFinal(b)
                     when {
-                        codProducto == null ->
+                        final == null ->
                             StatusChip("No se pudo comparar", GlassRojo.warning, icon = Icons.Rounded.Warning)
-                        mismoCodigo(codProducto, codCatalogo) ->
+                        mismoCodigo(final, codCatalogo) ->
                             StatusChip("Coincide con el catálogo", GlassRojo.success, icon = Icons.Rounded.CheckCircle)
                         else ->
                             StatusChip("No coincide con el catálogo", GlassRojo.warning, icon = Icons.Rounded.Warning)
@@ -371,6 +404,31 @@ private fun RevisionBloqueadaPreview() {
                     ),
                     EjemplosPreview.etiquetaConProblemas,
                     PrecioDetectado(null, TipoPrecio.DESCONOCIDO, false, ""),
+                ),
+            ),
+            onConfirmar = {}, onRetomar = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF020617, heightDp = 1700)
+@Composable
+private fun RevisionConEscaneoPreview() {
+    GlassRojoTheme {
+        RevisionContent(
+            state = RevisionUiState(
+                sesion = EjemplosPreview.sesion,
+                borrador = BorradorCaptura(
+                    productoEsperado = EjemplosPreview.esperado,
+                    producto = EjemplosPreview.analisis(
+                        com.richi_mc.hackathon3b.core.model.TipoFoto.PRODUCTO, "LECHE",
+                        problemas = listOf(Problema.SIN_CODIGO_BARRAS),
+                    ),
+                    etiqueta = EjemplosPreview.etiqueta,
+                    precio = EjemplosPreview.precio,
+                    codigoEscaneado = com.richi_mc.hackathon3b.core.model.CodigoEscaneado(
+                        "7501055300075", "EAN_13", true, 0L,
+                    ),
                 ),
             ),
             onConfirmar = {}, onRetomar = {},

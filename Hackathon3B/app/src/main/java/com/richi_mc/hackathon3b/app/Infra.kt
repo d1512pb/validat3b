@@ -20,7 +20,7 @@ class InMemoryBorradorStore : BorradorStore {
 class PrefsAjustesServidor(context: Context) : AjustesServidor {
     private val prefs = context.getSharedPreferences("ajustes_servidor", Context.MODE_PRIVATE)
     private val _url = MutableStateFlow(prefs.getString("url", null) ?: BuildConfig.SERVIDOR_URL)
-    private val _simulado = MutableStateFlow(prefs.getBoolean("simulado", true))
+    private val _simulado = MutableStateFlow(prefs.getBoolean("simulado", BuildConfig.DEBUG)) // simulado en debug, real en release
     override val url: StateFlow<String> = _url
     override val modoSimulado: StateFlow<Boolean> = _simulado
     override fun setUrl(url: String) {

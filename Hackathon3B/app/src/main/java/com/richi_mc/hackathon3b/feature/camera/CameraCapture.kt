@@ -120,6 +120,21 @@ fun CameraCapture(
     paso: Int = 1,
     totalPasos: Int = 3,
 ) {
+    PermisoCamaraGate(onCerrar = onCerrar, modifier = modifier) {
+        CamaraActiva(tipo, onFoto, onCerrar, modifier, paso, totalPasos)
+    }
+}
+
+/**
+ * Pide el permiso de cámara si falta y muestra [content] cuando está concedido; si se niega,
+ * muestra la pantalla de explicación. Compartido por [CameraCapture] y [BarcodeScanner].
+ */
+@Composable
+internal fun PermisoCamaraGate(
+    onCerrar: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
     val context = LocalContext.current
     var permiso by remember { mutableStateOf(tienePermisoCamara(context)) }
     var respondio by remember { mutableStateOf(false) }
@@ -132,7 +147,7 @@ fun CameraCapture(
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { permiso = tienePermisoCamara(context) }
 
     when {
-        permiso -> CamaraActiva(tipo, onFoto, onCerrar, modifier, paso, totalPasos)
+        permiso -> content()
         respondio -> PermisoDenegado(
             onReintentar = { launcher.launch(Manifest.permission.CAMERA) },
             onAjustes = { abrirAjustes(context) },
@@ -317,7 +332,7 @@ private fun CamaraActiva(
     }
 }
 
-private suspend fun awaitCameraProvider(context: Context): ProcessCameraProvider =
+internal suspend fun awaitCameraProvider(context: Context): ProcessCameraProvider =
     suspendCancellableCoroutine { cont ->
         val future = ProcessCameraProvider.getInstance(context)
         future.addListener({

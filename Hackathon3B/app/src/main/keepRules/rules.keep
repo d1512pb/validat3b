@@ -10,3 +10,6 @@
 #-keepclassmembers class fqcn.of.javascript.interface.for.webview {
 #   public *;
 #}
+# Contrato móvil ↔ servidor: DTOs kotlinx.serialization y la interfaz Retrofit.
+-keep,includedescriptorclasses class com.richi_mc.hackathon3b.core.network.** { *; }
+-keepattributes *Annotation*, InnerClasses, Signature, RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations

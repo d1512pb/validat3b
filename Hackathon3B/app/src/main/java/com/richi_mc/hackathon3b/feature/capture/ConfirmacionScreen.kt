@@ -24,6 +24,9 @@ import androidx.compose.material.icons.rounded.Cancel
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.CloudDone
 import androidx.compose.material.icons.rounded.CloudOff
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.LocalOffer
+import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Storefront
 import androidx.compose.material.icons.rounded.Sync
@@ -50,7 +53,9 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.richi_mc.hackathon3b.app.AppContainer
 import com.richi_mc.hackathon3b.core.model.Captura
 import com.richi_mc.hackathon3b.core.model.EstadoEnvio
+import com.richi_mc.hackathon3b.core.model.Decision
 import com.richi_mc.hackathon3b.core.model.ResultadoServidor
+import com.richi_mc.hackathon3b.core.model.TipoFoto
 import com.richi_mc.hackathon3b.ui.components.GlassBackground
 import com.richi_mc.hackathon3b.ui.components.GlassButton
 import com.richi_mc.hackathon3b.ui.components.GlassCard
@@ -127,6 +132,17 @@ fun ConfirmacionContent(
             Text(captureId, style = Glass.type.secondary, color = GlassRojo.inkMuted)
 
             state.captura?.let { EstadoEnvioChip(it) }
+            state.captura?.takeIf { it.estado == EstadoEnvio.FALLIDA }?.error
+                ?.takeIf { it.isNotBlank() }?.let { error ->
+                    Row(verticalAlignment = Alignment.Top) {
+                        Icon(
+                            Icons.Rounded.ErrorOutline, contentDescription = null,
+                            tint = GlassRojo.danger, modifier = Modifier.padding(top = 2.dp).size(16.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(error, style = Glass.type.secondary, color = GlassRojo.inkSecondary)
+                    }
+                }
             state.captura?.respuesta?.let { RespuestaCard(it) }
 
             ResumenCard(state)
@@ -174,6 +190,8 @@ private fun EstadoEnvioChip(c: Captura) {
                 ?: "Sin conexión, se enviará después"
             StatusChip(texto, GlassRojo.warning, icon = Icons.Rounded.CloudOff)
         }
+        EstadoEnvio.FALLIDA ->
+            StatusChip("No se pudo enviar: revisión manual", GlassRojo.danger, icon = Icons.Rounded.ErrorOutline)
     }
 }
 
@@ -183,6 +201,19 @@ private fun decisionUi(decision: String) = when (decision) {
     "aprobada" -> DecisionUi("Aprobada", GlassRojo.success, Icons.Rounded.CheckCircle)
     "rechazada" -> DecisionUi("Rechazada", GlassRojo.danger, Icons.Rounded.Cancel)
     else -> DecisionUi("Revisión manual", GlassRojo.warning, Icons.AutoMirrored.Rounded.HelpOutline)
+}
+
+private fun nombreFoto(t: TipoFoto) = when (t) {
+    TipoFoto.FACHADA -> "fachada"
+    TipoFoto.PRODUCTO -> "producto"
+    TipoFoto.ETIQUETA -> "etiqueta"
+}
+
+private fun tipoPrecioLegible(t: String) = when (t.lowercase()) {
+    "regular" -> "Precio regular"
+    "oferta" -> "Precio de oferta"
+    "volumen" -> "Precio por volumen"
+    else -> null
 }
 
 private fun motivoLegible(code: String): String = when (code) {
@@ -223,21 +254,44 @@ private fun RespuestaCard(r: ResultadoServidor) {
             Spacer(Modifier.height(GlassDimens.s12))
             Text(it, style = Glass.type.secondary, color = GlassRojo.inkSecondary)
         }
-        if (r.avisos.isNotEmpty()) {
+        val mensajes = r.mensajesCapturista
+        if (mensajes.isNotEmpty() && mensajes != listOfNotNull(r.explicacion?.takeIf { it.isNotBlank() })) {
             Spacer(Modifier.height(GlassDimens.s12))
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                r.avisos.forEach { aviso ->
-                    Row(verticalAlignment = Alignment.Top) {
-                        Icon(
-                            Icons.Rounded.Warning, contentDescription = null,
-                            tint = GlassRojo.warning, modifier = Modifier.padding(top = 2.dp).size(16.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(aviso, style = Glass.type.secondary, color = GlassRojo.warning, overflow = TextOverflow.Clip)
-                    }
+                mensajes.forEach { aviso ->
+                    LineaConIcono(Icons.Rounded.Warning, aviso, GlassRojo.warning)
                 }
             }
         }
+        if (r.fotosARepetir.isNotEmpty() && r.decision != Decision.APROBADA) {
+            Spacer(Modifier.height(GlassDimens.s12))
+            LineaConIcono(
+                Icons.Rounded.PhotoCamera,
+                "Repite la foto de: " + r.fotosARepetir.joinToString(", ") { nombreFoto(it) },
+                GlassRojo.warning,
+            )
+        }
+        val tipo = r.tipoPrecio?.let { tipoPrecioLegible(it) }
+        val promo = r.promocion?.takeIf { it.isNotBlank() }
+        if (tipo != null || promo != null) {
+            Spacer(Modifier.height(GlassDimens.s12))
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                tipo?.let { LineaConIcono(Icons.Rounded.LocalOffer, it, GlassRojo.inkSecondary) }
+                promo?.let { LineaConIcono(Icons.Rounded.LocalOffer, "Promoción: $it", GlassRojo.inkSecondary) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun LineaConIcono(icono: ImageVector, texto: String, color: Color) {
+    Row(verticalAlignment = Alignment.Top) {
+        Icon(
+            icono, contentDescription = null,
+            tint = color, modifier = Modifier.padding(top = 2.dp).size(16.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(texto, style = Glass.type.secondary, color = color, overflow = TextOverflow.Clip)
     }
 }
 
@@ -287,6 +341,48 @@ private fun ConfirmacionSinConexionPreview() {
             state = ConfirmacionUiState(
                 EjemplosPreview.captura.copy(
                     estado = EstadoEnvio.ERROR, respuesta = null, error = "Sin conexión, se enviará después",
+                ),
+                ResumenSesion(1, 0, 1),
+            ),
+            onSiguienteProducto = {}, onCambiarSucursal = {}, onInicio = {}, onExportar = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF020617, heightDp = 1200)
+@Composable
+private fun ConfirmacionRechazadaPreview() {
+    GlassRojoTheme {
+        ConfirmacionContent(
+            captureId = EjemplosPreview.captura.captureId,
+            state = ConfirmacionUiState(
+                EjemplosPreview.captura.copy(
+                    respuesta = ResultadoServidor(
+                        decision = "rechazada", confidenceScore = 0.88, reasonCode = "PRODUCTO_NO_COINCIDE",
+                        explicacion = "El producto de la foto no coincide con el esperado.",
+                        avisos = listOf("Revisa que sea el producto o contratipo esperado."),
+                        validaciones = mapOf("producto" to "falla", "evidencia_precio" to "falla"),
+                        fotosARepetir = listOf(TipoFoto.PRODUCTO, TipoFoto.ETIQUETA),
+                        tipoPrecio = "oferta", promocion = "2x\$50",
+                    ),
+                ),
+                ResumenSesion(4, 4, 0),
+            ),
+            onSiguienteProducto = {}, onCambiarSucursal = {}, onInicio = {}, onExportar = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF020617, heightDp = 900)
+@Composable
+private fun ConfirmacionFallidaPreview() {
+    GlassRojoTheme {
+        ConfirmacionContent(
+            captureId = EjemplosPreview.captura.captureId,
+            state = ConfirmacionUiState(
+                EjemplosPreview.captura.copy(
+                    estado = EstadoEnvio.FALLIDA, respuesta = null,
+                    error = "Revisa la clave de acceso del servidor. No autorizado (NO_AUTORIZADO)",
                 ),
                 ResumenSesion(1, 0, 1),
             ),

@@ -86,4 +86,5 @@ class FakeCapturaRepository : CapturaRepository {
         capturas.map { m -> m.values.filter { it.sesionId == sesionId }.sortedBy { it.timestampMillis } }
     override suspend fun siguienteConsecutivo() = ++consecutivo
     override suspend fun exportarJson(sesionId: String) = ""
+    override suspend fun probarServidor() = Result.success("Servidor simulado (fake)")
 }

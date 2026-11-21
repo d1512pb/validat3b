@@ -23,20 +23,14 @@ data class RevisionUiState(
     val confirmando: Boolean = false,
     val error: String? = null,
 ) {
-    /** Motivos (en lenguaje claro) por los que no se puede confirmar; vacío = se puede. */
+    /**
+     * Motivos (en lenguaje claro) por los que no se puede confirmar; vacío = se puede.
+     * Misma regla que la pantalla de producto ([motivosBloqueoBorrador]).
+     */
     val motivosBloqueo: List<String>
         get() = buildList {
             if (sesion == null) add("No hay una sucursal activa.")
-            if (borrador.producto == null) add("Falta la foto del producto.")
-            else if (borrador.producto.tieneBloqueantes) add(
-                "La foto del producto tiene problemas (" +
-                    borrador.producto.problemas.filter { it.bloqueante }.joinToString { it.corto } + ")."
-            )
-            if (borrador.etiqueta == null) add("Falta la foto de la etiqueta.")
-            else if (borrador.etiqueta.tieneBloqueantes) add(
-                "La foto de la etiqueta tiene problemas (" +
-                    borrador.etiqueta.problemas.filter { it.bloqueante }.joinToString { it.corto } + ")."
-            )
+            addAll(motivosBloqueoBorrador(borrador))
         }
 
     val puedeConfirmar get() = motivosBloqueo.isEmpty() && !confirmando
@@ -81,6 +75,7 @@ class RevisionViewModel(private val container: AppContainer) : ViewModel() {
                     etiqueta = etiqueta,
                     precio = precio,
                     timestampMillis = System.currentTimeMillis(),
+                    codigoEscaneado = s.borrador.codigoEscaneado,
                 )
                 repo.guardar(captura)
                 lanzarEnvio(captura)

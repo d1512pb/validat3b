@@ -30,7 +30,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.richi_mc.hackathon3b.core.model.AnalisisImagen
+import com.richi_mc.hackathon3b.core.model.BorradorCaptura
 import com.richi_mc.hackathon3b.core.model.Problema
+import com.richi_mc.hackathon3b.core.model.TipoPrecio
 import com.richi_mc.hackathon3b.ui.components.StatusChip
 import com.richi_mc.hackathon3b.ui.theme.Glass
 import com.richi_mc.hackathon3b.ui.theme.GlassDimens
@@ -48,6 +50,24 @@ internal fun iconoProblema(p: Problema): ImageVector =
 /** "$24.90"; null → null. */
 internal fun formatoPrecio(valor: Double?): String? =
     valor?.let { String.format(Locale.US, "$%.2f", it) }
+
+/** Compara códigos ignorando ceros a la izquierda (UPC-A vs EAN-13). */
+internal fun mismoCodigo(a: String, b: String) = a.trim().trimStart('0') == b.trim().trimStart('0')
+
+internal fun tipoPrecioTexto(t: TipoPrecio) = when (t) {
+    TipoPrecio.REGULAR -> "Regular"
+    TipoPrecio.OFERTA -> "Oferta"
+    TipoPrecio.VOLUMEN -> "Volumen"
+    TipoPrecio.DESCONOCIDO -> "No identificado"
+}
+
+/** "EAN_13" -> "EAN 13"; null -> null. */
+internal fun formatoLegible(formato: String?): String? = formato?.replace('_', ' ')
+
+/** Código final del borrador, con la misma regla que `Captura.codigoBarrasFinal`. */
+internal fun codigoFinal(b: BorradorCaptura): String? =
+    b.codigoEscaneado?.takeIf { it.checksumOk }?.valor
+        ?: b.producto?.codigoBarras ?: b.etiqueta?.codigoBarras ?: b.codigoEscaneado?.valor
 
 /** Miniatura de una foto (radio 14); sin archivo muestra un marcador. */
 @Composable

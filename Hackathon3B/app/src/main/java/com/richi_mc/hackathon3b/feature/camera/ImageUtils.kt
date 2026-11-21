@@ -1,11 +1,14 @@
 package com.richi_mc.hackathon3b.feature.camera
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.ExifInterface
+import android.net.Uri
 import com.richi_mc.hackathon3b.core.model.Umbrales
 import java.io.File
+import java.io.IOException
 import java.util.UUID
 import kotlin.math.max
 
@@ -34,8 +37,11 @@ object ImageUtils {
         ) ?: error("No se pudo decodificar la imagen")
 
         // 2) Rotación EXIF + reescalado en una sola transformación.
-        val orientation = ExifInterface(src.absolutePath)
-            .getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+        // Formatos sin EXIF legible (o EXIF corrupto) se tratan como orientación normal.
+        val orientation = runCatching {
+            ExifInterface(src.absolutePath)
+                .getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
+        }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
         val scale = maxSide.toFloat() / max(decoded.width, decoded.height)
         val matrix = Matrix().apply {
             when (orientation) {
@@ -64,5 +70,36 @@ object ImageUtils {
             transformed.recycle()
         }
         return out
+    }
+
+    /**
+     * Copia la imagen del [uri] (selector de fotos / galería) a un temporal y la guarda con
+     * [guardarReescalada] en [destDir] (siempre JPEG, lado mayor acotado, rotación EXIF aplicada).
+     * Acepta JPEG, PNG, WebP y HEIC/HEIF (BitmapFactory los decodifica en API 29+).
+     * La copia es byte a byte, así que el temporal conserva los metadatos EXIF originales.
+     * Lanza [IOException] con mensaje en español si no se puede leer o no es una imagen válida.
+     * Llamar fuera del hilo principal.
+     */
+    fun importarDesdeUri(context: Context, uri: Uri, destDir: File): File {
+        // Extensión neutra: BitmapFactory/ExifInterface detectan el formato por contenido, no por nombre.
+        val tmp = File.createTempFile("import_", ".img", context.cacheDir)
+        try {
+            val input = try {
+                context.contentResolver.openInputStream(uri)
+            } catch (e: Exception) {
+                throw IOException("No se pudo abrir la imagen seleccionada.", e)
+            } ?: throw IOException("No se pudo abrir la imagen seleccionada.")
+            input.use { origen -> tmp.outputStream().use { origen.copyTo(it) } }
+            if (tmp.length() == 0L) throw IOException("La imagen seleccionada está vacía.")
+            return try {
+                guardarReescalada(tmp, destDir)
+            } catch (e: IOException) {
+                throw e
+            } catch (e: Exception) {
+                throw IOException("No se pudo procesar la imagen: elige otra foto (JPG, PNG, WebP o HEIC).", e)
+            }
+        } finally {
+            tmp.delete()
+        }
     }
 }
