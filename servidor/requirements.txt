@@ -1,0 +1,9 @@
+anthropic>=2.12,<3
+fastapi>=0.165,<1
+uvicorn[standard]>=0.54
+python-multipart>=0.0.20
+pydantic>=2.9,<3
+pydantic-settings>=2.6
+pillow>=11
+numpy>=2
+zxing-cpp>=2.3

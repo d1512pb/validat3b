@@ -218,6 +218,97 @@
           "description": "True si se captura un contratipo y no el producto 3B.",
           "title": "Es Contratipo",
           "type": "boolean"
+        },
+        "precio_referencia": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Precio de referencia del catálogo (product_price).",
+          "title": "Precio Referencia"
+        },
+        "precio_minimo": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Límite inferior del rango de precio de referencia.",
+          "title": "Precio Minimo"
+        },
+        "precio_maximo": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Límite superior del rango de precio de referencia.",
+          "title": "Precio Maximo"
+        },
+        "unidad": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Unidad del contenido, p. ej. 'gramo' (unit_product).",
+          "title": "Unidad"
+        },
+        "cantidad": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Contenido en esa unidad, p. ej. 1000 (unit_quantity_product).",
+          "title": "Cantidad"
+        },
+        "categoria": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "product_group del catálogo.",
+          "title": "Categoria"
+        },
+        "linea": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "product_line del catálogo.",
+          "title": "Linea"
         }
       },
       "title": "ProductoEsperado",
@@ -273,7 +364,7 @@
   "description": "Datos de una captura. Viaja como el campo `captura` (texto JSON) del multipart.",
   "properties": {
     "version_contrato": {
-      "default": "0.1.0",
+      "default": "0.2.0",
       "description": "Versión del contrato con que se armó.",
       "title": "Version Contrato",
       "type": "string"
@@ -299,6 +390,32 @@
       "default": null,
       "description": "Código que capturó la app.",
       "title": "Codigo Barras Capturado"
+    },
+    "precio_capturado": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Precio que tecleó el capturista en campo (capture_price).",
+      "title": "Precio Capturado"
+    },
+    "marca_capturada": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Marca que capturó el capturista (capture_brand).",
+      "title": "Marca Capturada"
     },
     "producto_esperado": {
       "$ref": "#/$defs/ProductoEsperado"

@@ -3,7 +3,7 @@
   "info": {
     "title": "Validat3B",
     "description": "Valida capturas de precio en campo: aprobada, rechazada o revision_manual, con motivo y confianza.",
-    "version": "0.1.0"
+    "version": "0.2.0"
   },
   "paths": {
     "/salud": {
@@ -340,7 +340,7 @@
           "version_contrato": {
             "type": "string",
             "title": "Version Contrato",
-            "default": "0.1.0"
+            "default": "0.2.0"
           },
           "capa_decisiva": {
             "type": "string",
