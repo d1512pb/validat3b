@@ -1,0 +1,41 @@
+# Datos de 3B: no se suben (imágenes, metadatos, set ciego).
+# Guarden las fotos de 3B solo dentro de una carpeta datos/.
+datos/
+*.zip
+
+# Llaves y secretos
+.env
+.env.*
+!.env.ejemplo
+*.key
+*.pem
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ipynb_checkpoints/
+
+# Node, React Native, Expo
+node_modules/
+.expo/
+dist/
+build/
+*.log
+
+# Android, iOS y Flutter
+.gradle/
+local.properties
+*.apk
+*.aab
+*.keystore
+ios/Pods/
+.dart_tool/
+
+# Editores y sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
